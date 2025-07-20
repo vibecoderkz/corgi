@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # corgi_ai_edu
 
 A new Flutter project.
@@ -14,3 +15,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# corgi
+>>>>>>> 74fd6318e0e746234ceb71e4940b99cfb4b98bb0

@@ -43,3 +43,40 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Database files
+*.sql
+!database_schema.sql
+!admin_policies.sql
+!sample_data.sql
+
+# Sensitive configuration
+config/secrets.yaml
+config/secrets.json
+secrets/
+private/
+
+# API keys and credentials
+api_keys.txt
+credentials.json
+*.key
+*.pem
+
+# Local development
+.local/
+tmp/
+temp/
+
+# Database dumps
+*.dump
+*.sqlite
+*.db
+
+# Logs that might contain sensitive data
+logs/
+*.log.*
