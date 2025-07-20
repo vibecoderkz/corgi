@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Distribution method: app-store, ad-hoc, enterprise, development -->
+    <key>method</key>
+    <string>app-store</string>
+    
+    <!-- Upload to App Store Connect automatically -->
+    <key>uploadBitcode</key>
+    <false/>
+    
+    <!-- Upload symbols for crash reporting -->
+    <key>uploadSymbols</key>
+    <true/>
+    
+    <!-- Compile bitcode (deprecated but sometimes needed) -->
+    <key>compileBitcode</key>
+    <false/>
+    
+    <!-- Team ID -->
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID</string>
+    
+    <!-- Signing style -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+    
+    <!-- Bundle identifier to provisioning profile mapping -->
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.aicc.corgi</key>
+        <string>Automatic</string>
+    </dict>
+    
+    <!-- Signing certificate -->
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
+    
+    <!-- Destination -->
+    <key>destination</key>
+    <string>upload</string>
+    
+    <!-- Strip Swift symbols -->
+    <key>stripSwiftSymbols</key>
+    <true/>
+    
+    <!-- Thinning -->
+    <key>thinning</key>
+    <string>&lt;none&gt;</string>
+</dict>
+</plist>

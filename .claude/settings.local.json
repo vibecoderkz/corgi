@@ -24,7 +24,9 @@
       "Bash(\"/mnt/c/src/flutter/bin/flutter.bat\" pub get)",
       "Bash(\"/mnt/c/src/flutter/bin/cache/dart-sdk/bin/dart\" pub get)",
       "Bash(\"/mnt/c/src/flutter/bin/cache/dart-sdk/bin/dart.exe\" pub get)",
-      "Bash(\"/mnt/c/src/flutter/bin/cache/dart-sdk/bin/dart.exe\" pub run flutter_launcher_icons:main)"
+      "Bash(\"/mnt/c/src/flutter/bin/cache/dart-sdk/bin/dart.exe\" pub run flutter_launcher_icons:main)",
+      "Bash(cp:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }
