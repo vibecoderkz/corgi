@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(mv:*)",
+      "Bash(sed:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(dart analyze:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(/mnt/c/src/flutter/bin/flutter analyze)",
+      "Bash(flutter run:*)",
+      "Bash(flutter:*)",
+      "Bash(/bin/bash -c \"flutter analyze\")",
+      "Bash(sh -c:*)",
+      "Bash(echo $SHELL)",
+      "Bash(export:*)",
+      "Bash(bash --version)",
+      "Bash(exec:*)"
+    ],
+    "deny": []
+  }
+}
