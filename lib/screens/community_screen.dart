@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../models/discussion_models.dart';
+import '../services/discussion_service.dart';
+import 'discussion_details_screen.dart';
+import 'package:intl/intl.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -9,17 +13,45 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  List<DiscussionGroup> _discussionGroups = [];
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadDiscussionGroups();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDiscussionGroups() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final groups = await DiscussionService.getAccessibleDiscussionGroups();
+      if (mounted) {
+        setState(() {
+          _discussionGroups = groups;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Ошибка загрузки обсуждений: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -68,64 +100,93 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
   }
 
   Widget _buildDiscussionsTab() {
-    final discussions = [
-      Discussion(
-        id: '1',
-        title: 'Best resources for learning Neural Networks?',
-        author: 'John Doe',
-        timeAgo: '2 hours ago',
-        replies: 23,
-        likes: 45,
-        category: 'Question',
-      ),
-      Discussion(
-        id: '2',
-        title: 'My journey from zero to AI engineer in 6 months',
-        author: 'Sarah Smith',
-        timeAgo: '5 hours ago',
-        replies: 67,
-        likes: 234,
-        category: 'Story',
-      ),
-      Discussion(
-        id: '3',
-        title: 'Weekly challenge: Implement a simple chatbot',
-        author: 'AI Corgi Team',
-        timeAgo: '1 day ago',
-        replies: 45,
-        likes: 89,
-        category: 'Challenge',
-        isPinned: true,
-      ),
-      Discussion(
-        id: '4',
-        title: 'Understanding Transformers - A beginner\'s guide',
-        author: 'Mike Wilson',
-        timeAgo: '2 days ago',
-        replies: 12,
-        likes: 56,
-        category: 'Tutorial',
-      ),
-    ];
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: discussions.length,
-      itemBuilder: (context, index) {
-        final discussion = discussions[index];
-        return _buildDiscussionCard(discussion);
-      },
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadDiscussionGroups,
+              child: const Text('Повторить'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_discussionGroups.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.forum_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Нет доступных обсуждений',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Купите курсы, чтобы участвовать в обсуждениях',
+              style: TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadDiscussionGroups,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _discussionGroups.length,
+        itemBuilder: (context, index) {
+          final group = _discussionGroups[index];
+          return _buildDiscussionGroupCard(group);
+        },
+      ),
     );
   }
 
-  Widget _buildDiscussionCard(Discussion discussion) {
+  Widget _buildDiscussionGroupCard(DiscussionGroup group) {
+    String accessLevelText = '';
+    IconData accessIcon = Icons.forum;
+    Color accessColor = Colors.blue;
+
+    switch (group.accessLevel) {
+      case 'course':
+        accessLevelText = 'Курс';
+        accessIcon = Icons.school;
+        accessColor = Colors.green;
+        break;
+      case 'module':
+        accessLevelText = 'Модуль';
+        accessIcon = Icons.book;
+        accessColor = Colors.orange;
+        break;
+      case 'lesson':
+        accessLevelText = 'Урок';
+        accessIcon = Icons.play_lesson;
+        accessColor = Colors.blue;
+        break;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: () {
-          // TODO: Navigate to discussion details
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Discussion details coming soon!')),
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DiscussionDetailsScreen(discussionGroup: group),
+            ),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -136,44 +197,64 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
             children: [
               Row(
                 children: [
-                  if (discussion.isPinned) ...[
-                    const Icon(Icons.push_pin, size: 16, color: Colors.orange),
-                    const SizedBox(width: 8),
-                  ],
-                  _buildCategoryChip(discussion.category),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: accessColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(accessIcon, size: 14, color: accessColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          accessLevelText,
+                          style: TextStyle(
+                            color: accessColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const Spacer(),
                   Text(
-                    discussion.timeAgo,
+                    DateFormat('dd.MM.yyyy').format(group.createdAt),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                discussion.title,
-                style: Theme.of(context).textTheme.titleMedium,
+                group.name,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'by ${discussion.author}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              if (group.description != null && group.description!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  group.description!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(Icons.comment_outlined, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.forum_outlined, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    '${discussion.replies}',
+                    'Обсуждение',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  const SizedBox(width: 16),
-                  Icon(Icons.favorite_outline, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${discussion.likes}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[400]),
                 ],
               ),
             ],

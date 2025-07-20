@@ -126,4 +126,8 @@ class AuthService {
   Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
 
   bool get isAuthenticated => currentUser != null;
+
+  static Future<String?> getCurrentUserId() async {
+    return client.auth.currentUser?.id;
+  }
 }

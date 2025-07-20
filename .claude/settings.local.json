@@ -26,7 +26,13 @@
       "Bash(\"/mnt/c/src/flutter/bin/cache/dart-sdk/bin/dart.exe\" pub get)",
       "Bash(\"/mnt/c/src/flutter/bin/cache/dart-sdk/bin/dart.exe\" pub run flutter_launcher_icons:main)",
       "Bash(cp:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "Bash(/mnt/c/src/flutter/bin/flutter analyze --no-color)",
+      "Bash(/mnt/c/src/flutter/bin/dart analyze --no-fatal-infos --no-fatal-warnings lib/screens/discussion_details_screen.dart)",
+      "mcp__supabase__execute_sql"
     ],
     "deny": []
   }
