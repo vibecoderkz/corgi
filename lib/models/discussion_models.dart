@@ -363,3 +363,95 @@ class DiscussionStats {
     );
   }
 }
+
+// Helper class for creating new discussion groups
+class CreateDiscussionGroupRequest {
+  final String? courseId;
+  final String? moduleId;
+  final String? lessonId;
+  final String name;
+  final String? description;
+
+  CreateDiscussionGroupRequest({
+    this.courseId,
+    this.moduleId,
+    this.lessonId,
+    required this.name,
+    this.description,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'course_id': courseId,
+      'module_id': moduleId,
+      'lesson_id': lessonId,
+      'name': name,
+      'description': description,
+    };
+  }
+}
+
+// Helper class for updating discussion groups
+class UpdateDiscussionGroupRequest {
+  final String? name;
+  final String? description;
+  final bool? isActive;
+
+  UpdateDiscussionGroupRequest({
+    this.name,
+    this.description,
+    this.isActive,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (isActive != null) 'is_active': isActive,
+    };
+  }
+}
+
+// Helper class for content items (courses, modules, lessons)
+class ContentItem {
+  final String id;
+  final String title;
+  final String type; // 'course', 'module', 'lesson'
+
+  ContentItem({
+    required this.id,
+    required this.title,
+    required this.type,
+  });
+
+  factory ContentItem.fromJson(Map<String, dynamic> json) {
+    return ContentItem(
+      id: json['id'],
+      title: json['title'],
+      type: json['type'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'type': type,
+    };
+  }
+}
+
+// Discussion filter options
+class DiscussionFilter {
+  final String? contentType;
+  final String? contentId;
+  final bool questionsOnly;
+  final String? sortBy; // 'recent', 'popular', 'helpful'
+
+  DiscussionFilter({
+    this.contentType,
+    this.contentId,
+    this.questionsOnly = false,
+    this.sortBy = 'recent',
+  });
+}

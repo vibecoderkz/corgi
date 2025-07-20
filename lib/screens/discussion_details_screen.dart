@@ -136,6 +136,33 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
     }
   }
 
+  Future<void> _togglePostPin(String postId, bool isPinned) async {
+    try {
+      await DiscussionService.togglePostPin(postId, !isPinned);
+      await _loadPosts();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isPinned ? 'Сообщение откреплено' : 'Сообщение закреплено'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e')),
+        );
+      }
+    }
+  }
+
+  Future<bool> _isUserAdmin() async {
+    if (_currentUserId == null) return false;
+    // This would typically check the user role from the database
+    // For now, we'll use a simple check
+    return true; // Replace with actual admin check
+  }
+
   void _showReplyBox(String postId) {
     setState(() {
       _showReplyBoxes[postId] = !(_showReplyBoxes[postId] ?? false);

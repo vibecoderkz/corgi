@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/discussion_models.dart';
 import '../services/discussion_service.dart';
+import '../services/auth_service.dart';
 import 'discussion_details_screen.dart';
+import 'create_discussion_screen.dart';
+import 'search_discussions_screen.dart';
 import 'package:intl/intl.dart';
 
 class CommunityScreen extends StatefulWidget {
@@ -14,20 +17,32 @@ class CommunityScreen extends StatefulWidget {
 class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<DiscussionGroup> _discussionGroups = [];
+  List<TrendingDiscussion> _trendingDiscussions = [];
   bool _isLoading = true;
   String? _error;
+  String? _currentUserId;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _getCurrentUser();
     _loadDiscussionGroups();
+    _loadTrendingDiscussions();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _getCurrentUser() async {
+    _currentUserId = await AuthService.getCurrentUserId();
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadDiscussionGroups() async {
@@ -52,6 +67,50 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
         });
       }
     }
+  }
+
+  Future<void> _loadTrendingDiscussions() async {
+    try {
+      final trending = await DiscussionService.getTrendingDiscussions(limit: 5);
+      if (mounted) {
+        setState(() {
+          _trendingDiscussions = trending;
+        });
+      }
+    } catch (e) {
+      // Trending discussions are optional, don't show error
+      print('Warning: Could not load trending discussions: $e');
+    }
+  }
+
+  Future<void> _createDiscussion() async {
+    if (_currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Необходимо войти в систему')),
+      );
+      return;
+    }
+
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CreateDiscussionScreen(),
+      ),
+    );
+
+    if (result == true) {
+      await _loadDiscussionGroups();
+    }
+  }
+
+  List<DiscussionGroup> get filteredGroups {
+    if (_searchQuery.isEmpty) {
+      return _discussionGroups;
+    }
+    return _discussionGroups.where((group) =>
+        group.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        (group.description?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false)
+    ).toList();
   }
 
   @override
@@ -88,14 +147,13 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
           _buildEventsTab(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Create new content coming soon!')),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _currentUserId != null
+          ? FloatingActionButton(
+              onPressed: _createDiscussion,
+              backgroundColor: Colors.blue[600],
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 
@@ -142,16 +200,68 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadDiscussionGroups,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _discussionGroups.length,
-        itemBuilder: (context, index) {
-          final group = _discussionGroups[index];
-          return _buildDiscussionGroupCard(group);
-        },
-      ),
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchDiscussionsScreen(),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.search, color: Colors.grey[600]),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Поиск обсуждений...',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        
+        // Discussions list
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await _loadDiscussionGroups();
+              await _loadTrendingDiscussions();
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: filteredGroups.length + (_trendingDiscussions.isNotEmpty && _searchQuery.isEmpty ? 1 : 0),
+              itemBuilder: (context, index) {
+                // Show trending section first if no search
+                if (index == 0 && _trendingDiscussions.isNotEmpty && _searchQuery.isEmpty) {
+                  return _buildTrendingSection();
+                }
+                
+                final adjustedIndex = _trendingDiscussions.isNotEmpty && _searchQuery.isEmpty ? index - 1 : index;
+                final group = filteredGroups[adjustedIndex];
+                return _buildDiscussionGroupCard(group);
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -261,6 +371,103 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTrendingSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              Icon(Icons.trending_up, color: Colors.orange[600]),
+              const SizedBox(width: 8),
+              Text(
+                'Популярные обсуждения',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _trendingDiscussions.length,
+            itemBuilder: (context, index) {
+              final trending = _trendingDiscussions[index];
+              return Container(
+                width: 200,
+                margin: const EdgeInsets.only(right: 12),
+                child: Card(
+                  child: InkWell(
+                    onTap: () async {
+                      // Find the discussion group and navigate
+                      final group = _discussionGroups.firstWhere(
+                        (g) => g.id == trending.discussionGroupId,
+                        orElse: () => _discussionGroups.first,
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DiscussionDetailsScreen(discussionGroup: group),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            trending.groupName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.comment, size: 14, color: Colors.grey[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${trending.postsCount}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          Text(
+                            DateFormat('dd.MM.yyyy').format(trending.recentActivity),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 
