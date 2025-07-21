@@ -10,6 +10,7 @@
 
 -- Add sample data for testing
 INSERT INTO points_config (activity_type, base_points, is_active) VALUES
+('lesson_completed', 5, true),
 ('homework_completed', 10, true),
 ('final_project_completed', 50, true),
 ('module_completed', 50, true),

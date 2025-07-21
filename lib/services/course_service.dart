@@ -283,27 +283,121 @@ class CourseService {
   // Mark lesson as completed
   static Future<bool> markLessonCompleted(String lessonId) async {
     return await SupabaseService.requireAuth((userId) async {
-      // Get lesson and module info
-      final lesson = await getLessonDetails(lessonId);
-      if (lesson == null) return false;
+      try {
+        // Check if already completed
+        final existingProgress = await _client
+            .from('user_progress')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('lesson_id', lessonId)
+            .eq('progress_type', 'lesson_completed')
+            .maybeSingle();
 
-      final moduleId = lesson['module_id'];
-      final courseId = lesson['modules']['course_id'];
+        if (existingProgress != null) {
+          return true; // Already completed
+        }
 
-      // Insert progress record
-      await _client.from('user_progress').insert({
-        'user_id': userId,
-        'lesson_id': lessonId,
-        'module_id': moduleId,
-        'course_id': courseId,
-        'progress_type': 'lesson_completed',
-        'progress_percentage': 100.0,
-        'points_earned': 0,
-        'completed_at': DateTime.now().toIso8601String(),
-      });
+        // Get lesson and module info
+        final lesson = await getLessonDetails(lessonId);
+        if (lesson == null) return false;
 
-      return true;
+        final moduleId = lesson['module_id'];
+        final courseId = lesson['modules']['course_id'];
+
+        // Award points for lesson completion
+        final pointsResult = await _client.rpc('award_activity_points', params: {
+          'p_user_id': userId,
+          'p_activity_type': 'lesson_completed',
+          'p_reference_id': lessonId,
+          'p_description': 'Lesson completed: ${lesson['title'] ?? 'Unknown'}',
+        });
+
+        final pointsEarned = pointsResult ?? 0;
+
+        // Insert progress record
+        await _client.from('user_progress').insert({
+          'user_id': userId,
+          'lesson_id': lessonId,
+          'module_id': moduleId,
+          'course_id': courseId,
+          'progress_type': 'lesson_completed',
+          'progress_percentage': 100.0,
+          'points_earned': pointsEarned,
+          'completed_at': DateTime.now().toIso8601String(),
+        });
+
+        // Check if module is now completed
+        final isModuleComplete = await _isModuleCompleted(userId, moduleId);
+        if (isModuleComplete) {
+          // Award module completion points
+          await _client.rpc('award_activity_points', params: {
+            'p_user_id': userId,
+            'p_activity_type': 'module_completed',
+            'p_reference_id': moduleId,
+            'p_description': 'Module completed: ${lesson['modules']['title'] ?? 'Unknown'}',
+          });
+
+          // Check if course is now completed
+          final isCourseComplete = await _isCourseCompleted(userId, courseId);
+          if (isCourseComplete) {
+            // Award course completion points
+            await _client.rpc('award_activity_points', params: {
+              'p_user_id': userId,
+              'p_activity_type': 'course_completed',
+              'p_reference_id': courseId,
+              'p_description': 'Course completed: ${lesson['modules']['courses']['title'] ?? 'Unknown'}',
+            });
+          }
+        }
+
+        return true;
+      } catch (e) {
+        print('Error marking lesson completed: $e');
+        return false;
+      }
     }) ?? false;
+  }
+
+  // Helper method to check if module is completed
+  static Future<bool> _isModuleCompleted(String userId, String moduleId) async {
+    // Get all lessons in the module
+    final lessonsResponse = await _client
+        .from('lessons')
+        .select('id')
+        .eq('module_id', moduleId)
+        .eq('is_active', true);
+
+    if (lessonsResponse.isEmpty) return false;
+
+    // Get completed lessons
+    final completedLessons = await _client
+        .from('user_progress')
+        .select('lesson_id')
+        .eq('user_id', userId)
+        .eq('progress_type', 'lesson_completed')
+        .inFilter('lesson_id', lessonsResponse.map((l) => l['id']).toList());
+
+    return completedLessons.length == lessonsResponse.length;
+  }
+
+  // Helper method to check if course is completed
+  static Future<bool> _isCourseCompleted(String userId, String courseId) async {
+    // Get all modules in the course
+    final modulesResponse = await _client
+        .from('modules')
+        .select('id')
+        .eq('course_id', courseId)
+        .eq('is_active', true);
+
+    if (modulesResponse.isEmpty) return false;
+
+    // Check if all modules are completed
+    for (final module in modulesResponse) {
+      final isCompleted = await _isModuleCompleted(userId, module['id']);
+      if (!isCompleted) return false;
+    }
+
+    return true;
   }
 
   // Submit homework
