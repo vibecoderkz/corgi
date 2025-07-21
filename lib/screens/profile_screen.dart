@@ -5,6 +5,7 @@ import '../services/user_service.dart';
 import '../services/course_service.dart';
 import '../services/points_config_service.dart';
 import '../screens/settings_screen.dart';
+import '../screens/purchase_history_screen.dart';
 import 'admin/admin_dashboard_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -563,6 +564,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
+          
+          ListTile(
+            leading: const Icon(Icons.history, color: Colors.green),
+            title: const Text('История покупок'),
+            subtitle: const Text('Просмотр купленных курсов и модулей'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PurchaseHistoryScreen(),
+                ),
+              );
+            },
+          ),
           
           ListTile(
             leading: const Icon(Icons.edit),

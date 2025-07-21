@@ -18,10 +18,14 @@ Corgi AI Edu is a Flutter-based AI education platform with Supabase backend that
 # Install dependencies
 flutter pub get
 
-# Run the app
+# Run the app in development
 flutter run
 
-# Run tests
+# Run specific tests
+flutter test test/widget_test.dart
+flutter test --name "specific test name"
+
+# Run all tests
 flutter test
 
 # Run linting
@@ -30,17 +34,33 @@ flutter analyze
 # Clean build artifacts
 flutter clean
 
+# Generate launcher icons
+flutter packages pub run flutter_launcher_icons:main
+
 # Build for production
 flutter build apk --release  # Android
 flutter build ios --release  # iOS
+flutter build web --release  # Web
 ```
 
 ### Database Management
 ```bash
-# Initialize database (run SQL files in Supabase dashboard)
+# Required SQL files to run in Supabase SQL Editor (in order):
 # 1. database_schema.sql - Core tables and relationships
-# 2. admin_policies.sql - RLS policies for admin operations
-# 3. sample_data.sql - Test data for development
+# 2. admin_policies.sql - RLS policies for admin operations  
+# 3. discussion_system_schema.sql - Discussion system tables and triggers
+# 4. sample_data.sql - Test data for development
+# 5. sample_discussion_data.sql - Sample discussion content
+```
+
+### Environment Setup
+```bash
+# Create .env file with Supabase credentials:
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Install iOS dependencies (macOS only)
+cd ios && pod install && cd ..
 ```
 
 ## Architecture Overview
@@ -48,14 +68,23 @@ flutter build ios --release  # iOS
 ### Core Service Pattern
 The app uses a centralized service architecture with strict separation of concerns:
 
-- **SupabaseService**: Base service providing authenticated database operations
-- **AuthService**: Handles authentication, session management, and user state
-- **AdminService**: Admin-only operations with role validation
-- **CourseService**: Content retrieval and progress tracking
-- **UserService**: Profile management and user statistics
-- **DiscussionService**: Complete discussion management with posts, votes, and notifications
+**Base Layer:**
+- **SupabaseService**: Foundation service providing `safeExecute()` and `requireAuth()` patterns
+- **AuthService**: Authentication, session management, and Supabase client initialization
 
-All services use the `SupabaseService.requireAuth()` pattern for authenticated operations and `SupabaseService.safeExecute()` for error handling.
+**Business Logic Services:**
+- **AdminService**: Admin-only operations with role validation and content CRUD
+- **CourseService**: Hierarchical content retrieval and progress tracking  
+- **UserService**: Profile management, statistics, and achievement tracking
+- **PurchaseService**: Commerce operations with points integration and access control
+- **DiscussionService**: Community features with access-based discussion management
+- **PointsService**: Gamification system with transactions and leaderboards
+
+**Service Architecture Patterns:**
+- **Singleton Pattern**: All services follow consistent singleton implementation
+- **Two-Tier Security**: Service-level auth checks + database RLS policies
+- **Graceful Degradation**: Services return defaults rather than throwing exceptions
+- **Error Handling**: `safeExecute()` for optional operations, `requireAuth()` for authenticated actions
 
 ### Database Schema Hierarchy
 ```
@@ -204,4 +233,61 @@ Helpful votes automatically award points through database triggers:
 - Vote removed: -5 points from author
 - Prevents gaming through self-voting restrictions
 
-Always run lint and typecheck commands before committing changes to maintain code quality.
+### Purchase System Architecture
+
+#### Purchase Flow Pattern
+```dart
+// 1. UI Layer: Check access status
+await _checkAccess(); // Sets hasAccess boolean
+
+// 2. Service Layer: Process purchase with points discount
+final result = await PurchaseService.purchaseCourse(
+  courseId, price, 'points_demo', pointsToUse: pointsToUse
+);
+
+// 3. Database Layer: Create purchase record + points transaction
+// 4. UI Layer: Update access status and refresh content
+```
+
+#### Access Control Integration
+- **Hierarchical Access**: Course purchase grants module/lesson access
+- **Database Functions**: `user_has_course_access()`, `user_has_module_access()`, `user_has_lesson_access()`
+- **Purchase Verification**: Access checks performed before content display and after purchases
+- **UI State Management**: Dynamic button states based on purchase status
+
+#### Points as Currency System
+- **Currency Configuration**: Multi-country support with configurable points-per-currency ratios
+- **Discount Rules**: Type-based discount percentages (course: 10%, module: 15%, lesson: 20%)
+- **Maximum Limits**: 50% discount cap with real-time validation
+- **Transaction Tracking**: Separate `points_spending` table with currency value conversion
+
+### Key Development Patterns
+
+#### Service Extension Guidelines
+1. **Follow Singleton Pattern**: Use established `_instance` and `_internal()` structure
+2. **Use Base Service Methods**: Leverage `SupabaseService.safeExecute()` and `requireAuth()`
+3. **Implement Role Checks**: Use `AdminService.isAdmin()` for administrative operations
+4. **Maintain Error Consistency**: Return appropriate defaults (empty arrays, null, false)
+5. **Database Integration**: Use RPC functions for complex access control logic
+
+#### UI Purchase Pattern
+```dart
+// Standard purchase button implementation
+Widget _buildPurchaseSection() {
+  if (isCheckingAccess) return CircularProgressIndicator();
+  
+  if (hasAccess) {
+    return _buildAccessGrantedUI(); // Green checkmark, access message
+  } else {
+    return _buildPurchaseUI(); // Orange lock, purchase button with price
+  }
+}
+```
+
+#### Error Handling Philosophy
+- **Service Layer**: Return null/defaults rather than throwing exceptions
+- **UI Layer**: Check mounted state before setState to prevent memory leaks
+- **Purchase Flow**: Two-step confirmation with detailed error messages
+- **Access Verification**: Multiple validation layers (service + database + UI)
+
+Always run `flutter analyze` before committing to maintain code quality and consistency.

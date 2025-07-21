@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../models/course_models.dart';
 import '../screens/module_screen.dart';
 import '../services/course_service.dart';
+import '../services/purchase_service.dart';
+import '../services/auth_service.dart';
+import '../services/user_service.dart';
 
 class CourseDetailsScreen extends StatefulWidget {
   final dynamic course; // Accept either Course object or Map<String, dynamic> from database
@@ -20,11 +23,16 @@ class CourseDetailsScreen extends StatefulWidget {
 class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   Map<String, dynamic>? fullCourseData;
   bool isLoading = true;
+  bool hasAccess = false;
+  bool isCheckingAccess = false;
+  int userPoints = 0;
 
   @override
   void initState() {
     super.initState();
     _loadCourseDetails();
+    _checkAccess();
+    _loadUserPoints();
   }
 
   Future<void> _loadCourseDetails() async {
@@ -61,6 +69,215 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
           isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _checkAccess() async {
+    setState(() {
+      isCheckingAccess = true;
+    });
+
+    try {
+      String courseId = _getCourseId();
+      if (courseId.isNotEmpty) {
+        final access = await PurchaseService.hasAccessToCourse(courseId);
+        if (mounted) {
+          setState(() {
+            hasAccess = access;
+            isCheckingAccess = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            isCheckingAccess = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isCheckingAccess = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadUserPoints() async {
+    try {
+      final points = await UserService.getUserPoints();
+      if (mounted) {
+        setState(() {
+          userPoints = points;
+        });
+      }
+    } catch (e) {
+      // Points loading is optional
+    }
+  }
+
+  String _getCourseId() {
+    if (widget.courseData != null) {
+      return widget.courseData!['id'] ?? '';
+    } else if (widget.course != null && widget.course is Map<String, dynamic>) {
+      return widget.course['id'] ?? '';
+    } else if (widget.course != null && widget.course is Course) {
+      return widget.course.id;
+    }
+    return '';
+  }
+
+  Future<void> _purchaseCourse() async {
+    if (!AuthService().isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, войдите в систему для покупки')),
+      );
+      return;
+    }
+
+    final coursePrice = _getCourseData('price');
+    if (coursePrice == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Цена курса недоступна')),
+      );
+      return;
+    }
+
+    final price = double.tryParse(coursePrice.toString()) ?? 0.0;
+    await _showPurchaseDialog(
+      'курс', 
+      _getCourseData('title') ?? 'Курс',
+      price,
+      () => _executePurchase('course', price),
+    );
+  }
+
+  Future<void> _showPurchaseDialog(String type, String title, double price, VoidCallback onConfirm) async {
+    int? pointsToUse;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Купить $type'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Название: $title'),
+                const SizedBox(height: 8),
+                Text('Цена: \$${price.toStringAsFixed(2)}'),
+                const SizedBox(height: 16),
+                Text('Ваши баллы: $userPoints'),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Использовать баллы (необязательно)',
+                    border: OutlineInputBorder(),
+                    helperText: '1 балл = \$0.01',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    pointsToUse = int.tryParse(value);
+                  },
+                ),
+                if (pointsToUse != null && pointsToUse! > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Скидка: \$${(pointsToUse! * 0.01).toStringAsFixed(2)}',
+                    style: TextStyle(color: Colors.green[600]),
+                  ),
+                  Text(
+                    'К доплате: \$${(price - (pointsToUse! * 0.01)).toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _executePurchaseWithPoints('course', price, pointsToUse);
+              },
+              child: const Text('Купить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _executePurchase(String type, double price) async {
+    _executePurchaseWithPoints(type, price, null);
+  }
+
+  Future<void> _executePurchaseWithPoints(String type, double price, int? pointsToUse) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Обработка покупки...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      Map<String, dynamic> result;
+      String courseId = _getCourseId();
+
+      switch (type) {
+        case 'course':
+          result = await PurchaseService.purchaseCourse(
+            courseId, 
+            price, 
+            'points_demo',
+            pointsToUse: pointsToUse,
+          );
+          break;
+        default:
+          result = {'success': false, 'message': 'Неизвестный тип покупки'};
+      }
+
+      Navigator.pop(context); // Close loading dialog
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Покупка успешна!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _checkAccess(); // Refresh access status
+        await _loadUserPoints(); // Refresh points
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Ошибка покупки'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -126,6 +343,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 children: [
                   _buildCourseHeader(context),
                   _buildCourseStats(context),
+                  _buildPurchaseSection(context),
                   _buildCourseInfo(context),
                   _buildModulesSection(context),
                 ],
@@ -242,6 +460,138 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               Colors.purple,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPurchaseSection(BuildContext context) {
+    if (isCheckingAccess) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (hasAccess) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green[300]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green[600], size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'У вас есть доступ к этому курсу',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      'Вы можете просматривать все модули и уроки',
+                      style: TextStyle(
+                        color: Colors.green[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange[300]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lock, color: Colors.orange[600], size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Для доступа к курсу требуется покупка',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'Купите курс, чтобы получить доступ ко всем модулям и урокам',
+                        style: TextStyle(
+                          color: Colors.orange[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _purchaseCourse,
+                  icon: const Icon(Icons.shopping_cart),
+                  label: Text(
+                    'Купить курс за \$${_getCourseData('price') ?? 0}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (userPoints > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              'У вас есть $userPoints баллов для скидки!',
+              style: TextStyle(
+                color: Colors.green[600],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -459,8 +809,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     String moduleId = '';
     
     // Debug: Print the type and content of moduleData
-    print('ModuleData type: ${moduleData.runtimeType}');
-    print('ModuleData content: $moduleData');
     
     if (moduleData is Map<String, dynamic>) {
       title = moduleData['title'] ?? 'Module $moduleNumber';
@@ -475,7 +823,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
       }
     } else if (moduleData is List) {
       // Handle case where moduleData is unexpectedly a List
-      print('Warning: moduleData is a List, taking first element');
       if (moduleData.isNotEmpty && moduleData.first is Map<String, dynamic>) {
         final actualModule = moduleData.first as Map<String, dynamic>;
         title = actualModule['title'] ?? 'Module $moduleNumber';
@@ -494,7 +841,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
       }
     } else {
       // Handle Module object case or other fallback
-      print('Warning: moduleData is neither Map nor List: ${moduleData.runtimeType}');
       title = 'Module $moduleNumber';
       description = 'No description available';
     }

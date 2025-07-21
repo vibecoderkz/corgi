@@ -1,37 +1,52 @@
 import 'package:flutter/material.dart';
 import '../models/course_models.dart';
+import '../services/course_service.dart';
 
-class LessonScreen extends StatelessWidget {
+class LessonScreen extends StatefulWidget {
   final Lesson? lesson;
   final Map<String, dynamic>? lessonData;
   final int lessonNumber;
+  final String? moduleId;
+  final List<Map<String, dynamic>>? allLessons;
 
   const LessonScreen({
     super.key,
     this.lesson,
     this.lessonData,
     required this.lessonNumber,
+    this.moduleId,
+    this.allLessons,
   }) : assert(lesson != null || lessonData != null, 'Either lesson or lessonData must be provided');
+
+  @override
+  State<LessonScreen> createState() => _LessonScreenState();
+}
+
+class _LessonScreenState extends State<LessonScreen> {
+  bool _isCompleted = false;
+  bool _isLoading = false;
 
   // Helper method to get data from either source
   dynamic _getLessonData(String key) {
-    if (lessonData != null) {
+    if (widget.lessonData != null) {
       // Map database field names to expected keys
       switch (key) {
-        case 'duration': return lessonData!['duration_minutes'];
-        case 'contentType': return lessonData!['content_type'];
-        case 'contentUrl': return lessonData!['content_url'];
-        default: return lessonData![key];
+        case 'duration': return widget.lessonData!['duration_minutes'];
+        case 'contentType': return widget.lessonData!['content_type'];
+        case 'contentUrl': return widget.lessonData!['content_url'];
+        case 'id': return widget.lessonData!['id'];
+        default: return widget.lessonData![key];
       }
-    } else if (lesson != null) {
+    } else if (widget.lesson != null) {
       switch (key) {
-        case 'title': return lesson!.title;
-        case 'description': return lesson!.description;
-        case 'price': return lesson!.price;
-        case 'duration': return lesson!.durationMinutes;
-        case 'contentType': return lesson!.contentType;
-        case 'contentUrl': return lesson!.contentUrl;
-        case 'homework': return lesson!.homework;
+        case 'title': return widget.lesson!.title;
+        case 'description': return widget.lesson!.description;
+        case 'price': return widget.lesson!.price;
+        case 'duration': return widget.lesson!.durationMinutes;
+        case 'contentType': return widget.lesson!.contentType;
+        case 'contentUrl': return widget.lesson!.contentUrl;
+        case 'homework': return widget.lesson!.homework;
+        case 'id': return widget.lesson!.id;
         default: return null;
       }
     }
@@ -40,7 +55,7 @@ class LessonScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = _getLessonData('title') ?? 'Lesson $lessonNumber';
+    final title = _getLessonData('title') ?? 'Lesson ${widget.lessonNumber}';
     
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +114,7 @@ class LessonScreen extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    lessonNumber.toString(),
+                    widget.lessonNumber.toString(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -114,7 +129,7 @@ class LessonScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _getLessonData('title') ?? 'Lesson $lessonNumber',
+                      _getLessonData('title') ?? 'Lesson ${widget.lessonNumber}',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).primaryColor,
@@ -266,11 +281,9 @@ class LessonScreen extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Mark lesson as completed
-              },
+              onPressed: _isLoading ? null : _markAsCompleted,
               icon: const Icon(Icons.check_circle),
-              label: const Text('Mark as Completed'),
+              label: Text(_isCompleted ? 'Completed' : (_isLoading ? 'Loading...' : 'Mark as Completed')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
@@ -283,9 +296,7 @@ class LessonScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Navigate to previous lesson
-                  },
+                  onPressed: _hasPreviousLesson() ? _navigateToPreviousLesson : null,
                   icon: const Icon(Icons.arrow_back),
                   label: const Text('Previous'),
                 ),
@@ -293,9 +304,7 @@ class LessonScreen extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: Navigate to next lesson
-                  },
+                  onPressed: _hasNextLesson() ? _navigateToNextLesson : null,
                   icon: const Icon(Icons.arrow_forward),
                   label: const Text('Next'),
                 ),
@@ -303,6 +312,89 @@ class LessonScreen extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _markAsCompleted() async {
+    final lessonId = _getLessonData('id');
+    if (lessonId == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final success = await CourseService.markLessonCompleted(lessonId);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isCompleted = success;
+        });
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Lesson marked as completed!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _hasPreviousLesson() {
+    return widget.lessonNumber > 1;
+  }
+
+  bool _hasNextLesson() {
+    if (widget.allLessons == null) return false;
+    return widget.lessonNumber < widget.allLessons!.length;
+  }
+
+  void _navigateToPreviousLesson() {
+    if (!_hasPreviousLesson() || widget.allLessons == null) return;
+    
+    final previousLessonData = widget.allLessons![widget.lessonNumber - 2];
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LessonScreen(
+          lessonData: previousLessonData,
+          lessonNumber: widget.lessonNumber - 1,
+          moduleId: widget.moduleId,
+          allLessons: widget.allLessons,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToNextLesson() {
+    if (!_hasNextLesson() || widget.allLessons == null) return;
+    
+    final nextLessonData = widget.allLessons![widget.lessonNumber];
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LessonScreen(
+          lessonData: nextLessonData,
+          lessonNumber: widget.lessonNumber + 1,
+          moduleId: widget.moduleId,
+          allLessons: widget.allLessons,
+        ),
       ),
     );
   }

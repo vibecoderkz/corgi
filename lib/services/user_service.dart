@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
+import 'dart:typed_data';
 import 'supabase_service.dart';
 
 class UserService {
@@ -174,6 +176,76 @@ class UserService {
       return {'success': true, 'message': 'Profile updated successfully'};
     } catch (e) {
       return {'success': false, 'message': 'Failed to update profile: $e'};
+    }
+  }
+
+  // Upload profile image
+  static Future<Map<String, dynamic>> uploadProfileImage(
+    String userId,
+    dynamic imageFile, // Can be File or Uint8List
+    String fileName,
+  ) async {
+    try {
+      // Create file path with user ID folder
+      final filePath = '$userId/$fileName';
+      
+      // Upload to Supabase Storage
+      String? uploadPath;
+      if (imageFile is File) {
+        uploadPath = await _client.storage
+            .from('avatars')
+            .upload(filePath, imageFile);
+      } else if (imageFile is Uint8List) {
+        uploadPath = await _client.storage
+            .from('avatars')
+            .uploadBinary(filePath, imageFile);
+      } else {
+        throw Exception('Unsupported file type');
+      }
+      
+      // Get public URL
+      final publicUrl = _client.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+      
+      // Update user profile with new avatar URL
+      await updateUserProfile(
+        userId: userId,
+        avatarUrl: publicUrl,
+      );
+      
+      return {
+        'success': true, 
+        'message': 'Profile image uploaded successfully',
+        'url': publicUrl
+      };
+    } catch (e) {
+      return {
+        'success': false, 
+        'message': 'Failed to upload profile image: $e'
+      };
+    }
+  }
+
+  // Delete profile image
+  static Future<Map<String, dynamic>> deleteProfileImage(String userId, String fileName) async {
+    try {
+      final filePath = '$userId/$fileName';
+      
+      // Delete from storage
+      await _client.storage
+          .from('avatars')
+          .remove([filePath]);
+      
+      // Update user profile to remove avatar URL
+      await updateUserProfile(
+        userId: userId,
+        avatarUrl: null,
+      );
+      
+      return {'success': true, 'message': 'Profile image deleted successfully'};
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to delete profile image: $e'};
     }
   }
 }

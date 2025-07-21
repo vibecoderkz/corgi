@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/course_models.dart';
 import '../screens/lesson_screen.dart';
 import '../screens/final_project_screen.dart';
+import '../services/purchase_service.dart';
+import '../services/auth_service.dart';
+import '../services/user_service.dart';
 
-class ModuleScreen extends StatelessWidget {
+class ModuleScreen extends StatefulWidget {
   final Module? module;
   final Map<String, dynamic>? moduleData;
 
@@ -13,20 +16,237 @@ class ModuleScreen extends StatelessWidget {
     this.moduleData,
   }) : assert(module != null || moduleData != null, 'Either module or moduleData must be provided');
 
+  @override
+  State<ModuleScreen> createState() => _ModuleScreenState();
+}
+
+class _ModuleScreenState extends State<ModuleScreen> {
+  bool hasAccess = false;
+  bool isCheckingAccess = false;
+  int userPoints = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+    _loadUserPoints();
+  }
+
+  Future<void> _checkAccess() async {
+    setState(() {
+      isCheckingAccess = true;
+    });
+
+    try {
+      String moduleId = _getModuleId();
+      if (moduleId.isNotEmpty) {
+        final access = await PurchaseService.hasAccessToModule(moduleId);
+        if (mounted) {
+          setState(() {
+            hasAccess = access;
+            isCheckingAccess = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            isCheckingAccess = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isCheckingAccess = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadUserPoints() async {
+    try {
+      final points = await UserService.getUserPoints();
+      if (mounted) {
+        setState(() {
+          userPoints = points;
+        });
+      }
+    } catch (e) {
+      // Points loading is optional
+    }
+  }
+
+  String _getModuleId() {
+    if (widget.moduleData != null) {
+      if (widget.moduleData is Map<String, dynamic>) {
+        return widget.moduleData!['id'] ?? '';
+      } else if (widget.moduleData is List && (widget.moduleData as List).isNotEmpty) {
+        final moduleList = widget.moduleData as List;
+        if (moduleList.first is Map<String, dynamic>) {
+          return (moduleList.first as Map<String, dynamic>)['id'] ?? '';
+        }
+      }
+    } else if (widget.module != null) {
+      return widget.module!.id;
+    }
+    return '';
+  }
+
+  Future<void> _purchaseModule() async {
+    if (!AuthService().isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, войдите в систему для покупки')),
+      );
+      return;
+    }
+
+    final modulePrice = _getModuleData('price');
+    if (modulePrice == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Цена модуля недоступна')),
+      );
+      return;
+    }
+
+    final price = double.tryParse(modulePrice.toString()) ?? 0.0;
+    await _showPurchaseDialog(
+      'модуль',
+      _getModuleData('title') ?? 'Модуль',
+      price,
+    );
+  }
+
+  Future<void> _showPurchaseDialog(String type, String title, double price) async {
+    int? pointsToUse;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Купить $type'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Название: $title'),
+                const SizedBox(height: 8),
+                Text('Цена: \$${price.toStringAsFixed(2)}'),
+                const SizedBox(height: 16),
+                Text('Ваши баллы: $userPoints'),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Использовать баллы (необязательно)',
+                    border: OutlineInputBorder(),
+                    helperText: '1 балл = \$0.01',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    pointsToUse = int.tryParse(value);
+                  },
+                ),
+                if (pointsToUse != null && pointsToUse! > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Скидка: \$${(pointsToUse! * 0.01).toStringAsFixed(2)}',
+                    style: TextStyle(color: Colors.green[600]),
+                  ),
+                  Text(
+                    'К доплате: \$${(price - (pointsToUse! * 0.01)).toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _executePurchaseWithPoints(price, pointsToUse);
+              },
+              child: const Text('Купить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _executePurchaseWithPoints(double price, int? pointsToUse) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Обработка покупки...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      String moduleId = _getModuleId();
+      final result = await PurchaseService.purchaseModule(
+        moduleId,
+        price,
+        'points_demo',
+        pointsToUse: pointsToUse,
+      );
+
+      Navigator.pop(context); // Close loading dialog
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Покупка успешна!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _checkAccess(); // Refresh access status
+        await _loadUserPoints(); // Refresh points
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Ошибка покупки'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   // Helper method to get data from either source
   dynamic _getModuleData(String key) {
-    if (moduleData != null) {
+    if (widget.moduleData != null) {
       // Debug: Print the type and content of moduleData
-      print('ModuleScreen - moduleData type: ${moduleData.runtimeType}');
-      print('ModuleScreen - moduleData content: $moduleData');
+      print('ModuleScreen - moduleData type: ${widget.moduleData.runtimeType}');
+      print('ModuleScreen - moduleData content: ${widget.moduleData}');
       
       // Handle case where moduleData might be a List instead of Map
       Map<String, dynamic>? actualModuleData;
-      if (moduleData is Map<String, dynamic>) {
-        actualModuleData = moduleData;
-      } else if (moduleData is List && (moduleData as List).isNotEmpty) {
+      if (widget.moduleData is Map<String, dynamic>) {
+        actualModuleData = widget.moduleData;
+      } else if (widget.moduleData is List && (widget.moduleData as List).isNotEmpty) {
         print('Warning: moduleData is a List in ModuleScreen, taking first element');
-        final moduleList = moduleData as List;
+        final moduleList = widget.moduleData as List;
         if (moduleList.first is Map<String, dynamic>) {
           actualModuleData = moduleList.first as Map<String, dynamic>;
         }
@@ -41,16 +261,16 @@ class ModuleScreen extends StatelessWidget {
           default: return actualModuleData[key];
         }
       }
-    } else if (module != null) {
+    } else if (widget.module != null) {
       switch (key) {
-        case 'title': return module!.title;
-        case 'description': return module!.description;
-        case 'price': return module!.price;
-        case 'lessons': return module!.lessons;
-        case 'studentsCompleted': return module!.studentsCompleted;
-        case 'videoPreviewUrl': return module!.videoPreviewUrl;
-        case 'lessonsList': return module!.lessonsList;
-        case 'finalProject': return module!.finalProject;
+        case 'title': return widget.module!.title;
+        case 'description': return widget.module!.description;
+        case 'price': return widget.module!.price;
+        case 'lessons': return widget.module!.lessons;
+        case 'studentsCompleted': return widget.module!.studentsCompleted;
+        case 'videoPreviewUrl': return widget.module!.videoPreviewUrl;
+        case 'lessonsList': return widget.module!.lessonsList;
+        case 'finalProject': return widget.module!.finalProject;
         default: return null;
       }
     }
@@ -59,13 +279,13 @@ class ModuleScreen extends StatelessWidget {
 
   int _getLessonsCount() {
     // Try to get lessons count from different sources
-    if (moduleData != null) {
+    if (widget.moduleData != null) {
       // Handle case where moduleData might be a List instead of Map
       Map<String, dynamic>? actualModuleData;
-      if (moduleData is Map<String, dynamic>) {
-        actualModuleData = moduleData;
-      } else if (moduleData is List && (moduleData as List).isNotEmpty) {
-        final moduleList = moduleData as List;
+      if (widget.moduleData is Map<String, dynamic>) {
+        actualModuleData = widget.moduleData;
+      } else if (widget.moduleData is List && (widget.moduleData as List).isNotEmpty) {
+        final moduleList = widget.moduleData as List;
         if (moduleList.first is Map<String, dynamic>) {
           actualModuleData = moduleList.first as Map<String, dynamic>;
         }
@@ -79,9 +299,9 @@ class ModuleScreen extends StatelessWidget {
         // If lessons is a number, return it
         return int.tryParse(actualModuleData['lessons']?.toString() ?? '0') ?? 0;
       }
-    } else if (module != null) {
+    } else if (widget.module != null) {
       // If it's a number, return it
-      return int.tryParse(module!.lessons?.toString() ?? '0') ?? 0;
+      return int.tryParse(widget.module!.lessons?.toString() ?? '0') ?? 0;
     }
     return 0;
   }
@@ -113,6 +333,7 @@ class ModuleScreen extends StatelessWidget {
           children: [
             _buildModuleHeader(context),
             _buildModuleStats(context),
+            _buildPurchaseSection(context),
             _buildPreviewSection(context),
             _buildLessonsSection(context),
             _buildFinalProjectSection(context),
@@ -222,6 +443,138 @@ class ModuleScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+
+  Widget _buildPurchaseSection(BuildContext context) {
+    if (isCheckingAccess) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (hasAccess) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green[300]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green[600], size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'У вас есть доступ к этому модулю',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      'Вы можете просматривать все уроки',
+                      style: TextStyle(
+                        color: Colors.green[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange[300]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lock, color: Colors.orange[600], size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Для доступа к модулю требуется покупка',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'Купите модуль, чтобы получить доступ ко всем урокам',
+                        style: TextStyle(
+                          color: Colors.orange[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _purchaseModule,
+                  icon: const Icon(Icons.shopping_cart),
+                  label: Text(
+                    'Купить модуль за \$${_getModuleData('price') ?? 0}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (userPoints > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              'У вас есть $userPoints баллов для скидки!',
+              style: TextStyle(
+                color: Colors.green[600],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
