@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'supabase_service.dart';
+import '../models/main_page_models.dart';
 
 class UserService {
   static final UserService _instance = UserService._internal();
@@ -23,58 +24,77 @@ class UserService {
     });
   }
 
-  // Get user statistics
-  static Future<Map<String, dynamic>?> getUserStats(String userId) async {
-    try {
-      // Get user's purchased courses count
-      final purchasesResponse = await _client
-          .from('purchases')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('payment_status', 'completed');
-
-      // Get user's total points from users table
-      final userResponse = await _client
-          .from('users')
-          .select('total_points')
-          .eq('id', userId)
-          .single();
-
-      // Get user's certificates count (from user_achievements table)
-      final certificatesResponse = await _client
-          .from('user_achievements')
-          .select('id')
-          .eq('user_id', userId);
-
-      // Get user's current streak (placeholder - implement based on your streak logic)
-      int streak = 0;
+  // Get comprehensive user statistics
+  static Future<UserStats> getUserStats() async {
+    return await SupabaseService.requireAuth((userId) async {
       try {
-        final streakResponse = await _client
-            .from('user_streaks')
-            .select('current_streak')
-            .eq('user_id', userId)
-            .single();
-        streak = streakResponse['current_streak'] ?? 0;
-      } catch (e) {
-        // Streak table might not exist, use default
-        streak = 0;
-      }
+        // Get all courses count
+        final totalCoursesResponse = await _client
+            .from('courses')
+            .select('id')
+            .eq('is_active', true);
+        final totalCourses = totalCoursesResponse.length;
 
-      return {
-        'courses_count': purchasesResponse.length,
-        'points': userResponse['total_points'] ?? 0,
-        'certificates_count': certificatesResponse.length,
-        'streak': streak,
-      };
-    } catch (e) {
-      // Return default stats if some data is missing
-      return {
-        'courses_count': 0,
-        'points': 0,
-        'certificates_count': 0,
-        'streak': 0,
-      };
-    }
+        // Get user's completed courses
+        final completedCoursesResponse = await _client
+            .from('user_progress')
+            .select('course_id')
+            .eq('user_id', userId)
+            .eq('progress_type', 'course_completed');
+        final coursesCompleted = completedCoursesResponse.length;
+
+        // Get all modules count
+        final totalModulesResponse = await _client
+            .from('modules')
+            .select('id')
+            .eq('is_active', true);
+        final totalModules = totalModulesResponse.length;
+
+        // Get user's completed modules
+        final completedModulesResponse = await _client
+            .from('user_progress')
+            .select('module_id')
+            .eq('user_id', userId)
+            .eq('progress_type', 'module_completed');
+        final modulesCompleted = completedModulesResponse.length;
+
+        // Get user's completed lessons
+        final completedLessonsResponse = await _client
+            .from('user_progress')
+            .select('lesson_id')
+            .eq('user_id', userId)
+            .eq('progress_type', 'lesson_completed');
+        final lessonsCompleted = completedLessonsResponse.length;
+
+        // Get user's current streak
+        int streak = 0;
+        try {
+          final streakResponse = await _client
+              .from('user_streaks')
+              .select('current_streak')
+              .eq('user_id', userId)
+              .single();
+          streak = streakResponse['current_streak'] ?? 0;
+        } catch (e) {
+          // Streak table might not exist, use default
+          streak = 0;
+        }
+
+        return UserStats(
+          coursesCompleted: coursesCompleted,
+          totalCourses: totalCourses,
+          lessonsCompleted: lessonsCompleted,
+          modulesCompleted: modulesCompleted,
+          totalModules: totalModules,
+          totalLearningMinutes: 0, // Placeholder - implement based on your tracking
+          userRank: 0, // Placeholder - implement based on your ranking logic
+          streak: streak,
+        );
+      } catch (e) {
+        // Return default stats if error occurs
+        return UserStats.defaultStats();
+      }
+    }) ?? UserStats.defaultStats();
   }
 
   // Get user's current points

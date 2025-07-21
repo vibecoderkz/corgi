@@ -40,7 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Load user profile data
       final userProfile = await UserService.getCurrentUserProfile();
-      final userStats = await UserService.getUserStats(currentUser.id);
+      final userStats = await UserService.getUserStats();
       final userSkills = await UserService.getUserSkillProgress(currentUser.id);
       final userAchievements = await UserService.getUserAchievements(currentUser.id);
       final userCertificates = await UserService.getUserCertificates(currentUser.id);

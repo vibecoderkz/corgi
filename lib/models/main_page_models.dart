@@ -213,6 +213,54 @@ class CommunityProject {
   }
 }
 
+class UserStats {
+  final int coursesCompleted;
+  final int totalCourses;
+  final int lessonsCompleted;
+  final int modulesCompleted;
+  final int totalModules;
+  final int totalLearningMinutes;
+  final int userRank;
+  final int streak;
+
+  UserStats({
+    required this.coursesCompleted,
+    required this.totalCourses,
+    required this.lessonsCompleted,
+    required this.modulesCompleted,
+    required this.totalModules,
+    required this.totalLearningMinutes,
+    required this.userRank,
+    required this.streak,
+  });
+
+  factory UserStats.fromJson(Map<String, dynamic> json) {
+    return UserStats(
+      coursesCompleted: json['courses_count'] ?? 0,
+      totalCourses: json['total_courses'] ?? 0,
+      lessonsCompleted: json['lessons_completed'] ?? 0,
+      modulesCompleted: json['modules_completed'] ?? 0,
+      totalModules: json['total_modules'] ?? 0,
+      totalLearningMinutes: json['total_learning_minutes'] ?? 0,
+      userRank: json['user_rank'] ?? 0,
+      streak: json['streak'] ?? 0,
+    );
+  }
+
+  static UserStats defaultStats() {
+    return UserStats(
+      coursesCompleted: 0,
+      totalCourses: 0,
+      lessonsCompleted: 0,
+      modulesCompleted: 0,
+      totalModules: 0,
+      totalLearningMinutes: 0,
+      userRank: 0,
+      streak: 0,
+    );
+  }
+}
+
 class LeaderboardEntry {
   final String userId;
   final String userName;

@@ -48,8 +48,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _totalPoints = results[0] as int;
-          _pointsSummary = results[1] as PointsSummary;
-          _userStats = results[2] as UserStats;
+          _pointsSummary = results[1] as PointsSummary?;
+          _userStats = results[2] as UserStats?;
           _recentActivities = results[3] as List<Map<String, dynamic>>;
           _isLoading = false;
         });
