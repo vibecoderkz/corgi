@@ -4,6 +4,7 @@ import '../services/admin_service.dart';
 import '../services/user_service.dart';
 import '../services/course_service.dart';
 import '../services/points_config_service.dart';
+import '../models/main_page_models.dart';
 import '../screens/settings_screen.dart';
 import '../screens/purchase_history_screen.dart';
 import 'admin/admin_dashboard_screen.dart';
