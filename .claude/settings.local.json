@@ -32,7 +32,8 @@
       "mcp__supabase__apply_migration",
       "Bash(/mnt/c/src/flutter/bin/flutter analyze --no-color)",
       "Bash(/mnt/c/src/flutter/bin/dart analyze --no-fatal-infos --no-fatal-warnings lib/screens/discussion_details_screen.dart)",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "Bash(find:*)"
     ],
     "deny": []
   }
