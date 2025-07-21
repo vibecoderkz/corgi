@@ -264,54 +264,6 @@ class PointsService {
     }
   }
 
-  // Get user's points summary
-  static Future<Map<String, dynamic>> getUserPointsSummary(String userId) async {
-    try {
-      // Get total points
-      final userResponse = await _client
-          .from('users')
-          .select('total_points')
-          .eq('id', userId)
-          .single();
-
-      // Get points breakdown
-      final transactionsResponse = await _client
-          .from('points_transactions')
-          .select('transaction_type, points')
-          .eq('user_id', userId);
-
-      final breakdown = <String, int>{
-        'homework_completed': 0,
-        'final_project_completed': 0,
-        'useful_post': 0,
-        'course_completed': 0,
-        'achievement': 0,
-      };
-
-      for (final transaction in transactionsResponse) {
-        final type = transaction['transaction_type'];
-        final points = transaction['points'] as int;
-        breakdown[type] = (breakdown[type] ?? 0) + points;
-      }
-
-      // Get recent transactions
-      final recentTransactions = await _client
-          .from('points_transactions')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', ascending: false)
-          .limit(10);
-
-      return {
-        'success': true,
-        'total_points': userResponse['total_points'],
-        'breakdown': breakdown,
-        'recent_transactions': recentTransactions,
-      };
-    } catch (e) {
-      return {'success': false, 'message': 'Failed to get points summary: $e'};
-    }
-  }
 
   // Get leaderboard
   static Future<List<Map<String, dynamic>>> getLeaderboard({
