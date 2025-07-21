@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 import '../models/user_registration_model.dart';
 
@@ -12,10 +11,13 @@ class AuthService {
 
   static Future<void> initialize() async {
     try {
-      await dotenv.load();
+      // Use environment variables directly from .env file
+      const supabaseUrl = 'https://gkvxoczdmuxrdseahgbv.supabase.co';
+      const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrdnhvY3pkbXV4cmRzZWFoZ2J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzOTk4OTgsImV4cCI6MjA2Nzk3NTg5OH0.PrrbhG_puaqm31ZBQKejIKcrnNlmImiWjQimoTxfmtA';
+      
       await Supabase.initialize(
-        url: dotenv.env['SUPABASE_URL']!,
-        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
       );
     } catch (e) {
       print('AuthService initialization error: $e');

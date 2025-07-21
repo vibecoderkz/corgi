@@ -43,8 +43,6 @@ dependencies:
   # Supabase
   supabase_flutter: ^2.5.6
   
-  # Environment variables
-  flutter_dotenv: ^5.1.0
   
   # Shared preferences for onboarding state
   shared_preferences: ^2.2.2
@@ -82,7 +80,6 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - .env
     - lib/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
