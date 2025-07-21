@@ -280,6 +280,21 @@ class CourseService {
     }) ?? false;
   }
 
+  // Check if lesson is completed
+  static Future<bool> isLessonCompleted(String lessonId) async {
+    return await SupabaseService.requireAuth((userId) async {
+      final result = await _client
+          .from('user_progress')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('lesson_id', lessonId)
+          .eq('progress_type', 'lesson_completed')
+          .maybeSingle();
+
+      return result != null;
+    }) ?? false;
+  }
+
   // Mark lesson as completed
   static Future<bool> markLessonCompleted(String lessonId) async {
     return await SupabaseService.requireAuth((userId) async {

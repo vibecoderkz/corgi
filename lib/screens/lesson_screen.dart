@@ -54,6 +54,28 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _checkLessonCompletion();
+  }
+
+  Future<void> _checkLessonCompletion() async {
+    final lessonId = _getLessonData('id');
+    if (lessonId == null) return;
+
+    try {
+      final isCompleted = await CourseService.isLessonCompleted(lessonId);
+      if (mounted) {
+        setState(() {
+          _isCompleted = isCompleted;
+        });
+      }
+    } catch (e) {
+      print('Error checking lesson completion: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final title = _getLessonData('title') ?? 'Lesson ${widget.lessonNumber}';
     

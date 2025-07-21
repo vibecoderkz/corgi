@@ -78,9 +78,25 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
   }
 
   Future<void> _createPost(String content, {String? parentPostId}) async {
-    if (content.trim().isEmpty) return;
+    if (content.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сообщение не может быть пустым')),
+      );
+      return;
+    }
+
+    // Show loading state
+    setState(() {
+      if (parentPostId != null) {
+        _showReplyBoxes[parentPostId] = true;
+      }
+    });
 
     try {
+      print('Creating post with content: ${content.trim()}');
+      print('Parent post ID: $parentPostId');
+      print('Discussion group ID: ${widget.discussionGroup.id}');
+
       final request = CreatePostRequest(
         discussionGroupId: widget.discussionGroup.id,
         title: parentPostId == null ? 'Обсуждение' : '',
@@ -89,7 +105,8 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
         parentPostId: parentPostId,
       );
 
-      await DiscussionService.createPost(request);
+      final result = await DiscussionService.createPost(request);
+      print('Create post result: $result');
       
       if (parentPostId == null) {
         _newPostController.clear();
@@ -102,13 +119,20 @@ class _DiscussionDetailsScreenState extends State<DiscussionDetailsScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Сообщение добавлено')),
+          const SnackBar(
+            content: Text('Сообщение добавлено'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
+      print('Error creating post: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e')),
+          SnackBar(
+            content: Text('Ошибка создания сообщения: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
