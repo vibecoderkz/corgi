@@ -13,8 +13,15 @@ import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.initialize();
-  runApp(const MyApp());
+  
+  try {
+    await AuthService.initialize();
+    runApp(const MyApp());
+  } catch (e) {
+    print('Initialization error: $e');
+    // Run app with error screen or basic fallback
+    runApp(const MyApp());
+  }
 }
 
 class MyApp extends StatelessWidget {

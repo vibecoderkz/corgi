@@ -11,11 +11,16 @@ class AuthService {
   static SupabaseClient get client => Supabase.instance.client;
 
   static Future<void> initialize() async {
-    await dotenv.load();
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-    );
+    try {
+      await dotenv.load();
+      await Supabase.initialize(
+        url: dotenv.env['SUPABASE_URL']!,
+        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+      );
+    } catch (e) {
+      print('AuthService initialization error: $e');
+      rethrow;
+    }
   }
 
   Future<AuthResponse> signUp({
