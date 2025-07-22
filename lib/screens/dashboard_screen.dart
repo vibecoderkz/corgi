@@ -57,14 +57,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _getRecentActivities() async {
-    // Get recent transactions as activities
-    final pointsSummary = await PointsService.getUserPointsSummary();
-    return pointsSummary.recentTransactions.take(5).map((transaction) => {
-      'type': transaction.transactionType,
-      'description': transaction.description,
-      'points': transaction.points,
-      'date': transaction.createdAt,
-    }).toList();
+    // Return empty list since points/transactions are removed
+    return <Map<String, dynamic>>[];
   }
 
   @override

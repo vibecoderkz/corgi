@@ -153,7 +153,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   }
 
   Future<void> _showPurchaseDialog(String type, String title, double price, VoidCallback onConfirm) async {
-    int? pointsToUse;
     
     showDialog(
       context: context,
@@ -168,31 +167,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 Text('Название: $title'),
                 const SizedBox(height: 8),
                 Text('Цена: \$${price.toStringAsFixed(2)}'),
-                const SizedBox(height: 16),
-                Text('Ваши баллы: $userPoints'),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Использовать баллы (необязательно)',
-                    border: OutlineInputBorder(),
-                    helperText: '1 балл = \$0.01',
-                  ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    pointsToUse = int.tryParse(value);
-                  },
-                ),
-                if (pointsToUse != null && pointsToUse! > 0) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Скидка: \$${(pointsToUse! * 0.01).toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.green[600]),
-                  ),
-                  Text(
-                    'К доплате: \$${(price - (pointsToUse! * 0.01)).toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
               ],
             ),
           ),
@@ -204,7 +178,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                _executePurchaseWithPoints('course', price, pointsToUse);
+                onConfirm();
               },
               child: const Text('Купить'),
             ),
@@ -215,10 +189,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   }
 
   Future<void> _executePurchase(String type, double price) async {
-    _executePurchaseWithPoints(type, price, null);
-  }
-
-  Future<void> _executePurchaseWithPoints(String type, double price, int? pointsToUse) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -244,7 +214,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
             courseId, 
             price, 
             'points_demo',
-            pointsToUse: pointsToUse,
           );
           break;
         default:
@@ -261,7 +230,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
           ),
         );
         await _checkAccess(); // Refresh access status
-        await _loadUserPoints(); // Refresh points
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

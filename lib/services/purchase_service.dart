@@ -133,41 +133,13 @@ class PurchaseService {
     }) ?? false;
   }
 
-  // Purchase with points discount
-  static Future<Map<String, dynamic>> _recordPointsSpending({
-    required int pointsSpent,
-    required String purchaseId,
-    required double discountAmount,
-    required String description,
-  }) async {
-    return await SupabaseService.requireAuth((userId) async {
-      // Get user's currency config
-      final currencyConfig = await PointsConfigService.getUserCurrencyConfig();
-      if (currencyConfig == null) {
-        throw Exception('Failed to get currency configuration');
-      }
 
-      await _client.from('points_spending').insert({
-        'user_id': userId,
-        'points_spent': pointsSpent,
-        'spending_type': 'purchase_discount',
-        'purchase_id': purchaseId,
-        'currency_code': currencyConfig['currency_code'],
-        'currency_value': discountAmount,
-        'description': description,
-      });
-
-      return {'success': true};
-    }) ?? {'success': false, 'message': 'Failed to record points spending'};
-  }
-
-  // Purchase a course with optional points discount
+  // Purchase a course
   static Future<Map<String, dynamic>> purchaseCourse(
     String courseId,
     double amount,
-    String paymentMethod, {
-    int? pointsToUse,
-  }) async {
+    String paymentMethod,
+  ) async {
     return await SupabaseService.requireAuth((userId) async {
       try {
         // Check if already purchased
@@ -184,37 +156,6 @@ class PurchaseService {
           return {'success': false, 'message': 'Course already purchased'};
         }
 
-        // Calculate final amount with points discount
-        double finalAmount = amount;
-        if (pointsToUse != null && pointsToUse > 0) {
-          // Get user's available points
-          final userPoints = await UserService.getUserPoints();
-          if (userPoints < pointsToUse) {
-            return {'success': false, 'message': 'Insufficient points'};
-          }
-
-          // Calculate maximum discount
-          final discountInfo = await PointsConfigService.calculateMaxDiscount(
-            purchaseType: 'course',
-            originalPrice: amount,
-            userPoints: userPoints,
-          );
-
-          if (discountInfo != null) {
-            final maxPointsToUse = discountInfo['max_points_to_use'] as int;
-            if (pointsToUse > maxPointsToUse) {
-              return {'success': false, 'message': 'Cannot use more than $maxPointsToUse points for this purchase'};
-            }
-
-            // Calculate actual discount
-            final currencyConfig = await PointsConfigService.getUserCurrencyConfig();
-            if (currencyConfig != null) {
-              final pointsPerCurrency = double.parse(currencyConfig['points_per_currency'].toString());
-              final discountAmount = pointsToUse / pointsPerCurrency;
-              finalAmount = amount - discountAmount;
-            }
-          }
-        }
 
         // Create purchase record
         final response = await _client
@@ -223,7 +164,7 @@ class PurchaseService {
               'user_id': userId,
               'course_id': courseId,
               'purchase_type': 'course',
-              'amount': finalAmount,
+              'amount': amount,
               'payment_method': paymentMethod,
               'payment_status': 'completed',
               'transaction_id': 'txn_${DateTime.now().millisecondsSinceEpoch}',
@@ -231,24 +172,12 @@ class PurchaseService {
             .select()
             .single();
 
-        // Record points spending if applicable
-        if (pointsToUse != null && pointsToUse > 0) {
-          await _recordPointsSpending(
-            pointsSpent: pointsToUse,
-            purchaseId: response['id'],
-            discountAmount: amount - finalAmount,
-            description: 'Discount on course purchase',
-          );
-        }
 
         return {
           'success': true,
           'message': 'Course purchased successfully',
           'purchase_id': response['id'],
-          'original_amount': amount,
-          'final_amount': finalAmount,
-          'points_used': pointsToUse ?? 0,
-          'discount_amount': amount - finalAmount,
+          'amount': amount,
         };
       } catch (e) {
         return {'success': false, 'message': 'Purchase failed: $e'};
@@ -256,51 +185,18 @@ class PurchaseService {
     }) ?? {'success': false, 'message': 'User not authenticated'};
   }
 
-  // Purchase a module with optional points discount
+  // Purchase a module
   static Future<Map<String, dynamic>> purchaseModule(
     String moduleId,
     double amount,
-    String paymentMethod, {
-    int? pointsToUse,
-  }) async {
+    String paymentMethod,
+  ) async {
     return await SupabaseService.requireAuth((userId) async {
       try {
         // Check if already purchased or has access
         final hasAccess = await hasAccessToModule(moduleId);
         if (hasAccess) {
           return {'success': false, 'message': 'You already have access to this module'};
-        }
-
-        // Calculate final amount with points discount
-        double finalAmount = amount;
-        if (pointsToUse != null && pointsToUse > 0) {
-          // Get user's available points
-          final userPoints = await UserService.getUserPoints();
-          if (userPoints < pointsToUse) {
-            return {'success': false, 'message': 'Insufficient points'};
-          }
-
-          // Calculate maximum discount
-          final discountInfo = await PointsConfigService.calculateMaxDiscount(
-            purchaseType: 'module',
-            originalPrice: amount,
-            userPoints: userPoints,
-          );
-
-          if (discountInfo != null) {
-            final maxPointsToUse = discountInfo['max_points_to_use'] as int;
-            if (pointsToUse > maxPointsToUse) {
-              return {'success': false, 'message': 'Cannot use more than $maxPointsToUse points for this purchase'};
-            }
-
-            // Calculate actual discount
-            final currencyConfig = await PointsConfigService.getUserCurrencyConfig();
-            if (currencyConfig != null) {
-              final pointsPerCurrency = double.parse(currencyConfig['points_per_currency'].toString());
-              final discountAmount = pointsToUse / pointsPerCurrency;
-              finalAmount = amount - discountAmount;
-            }
-          }
         }
 
         // Create purchase record
@@ -310,7 +206,7 @@ class PurchaseService {
               'user_id': userId,
               'module_id': moduleId,
               'purchase_type': 'module',
-              'amount': finalAmount,
+              'amount': amount,
               'payment_method': paymentMethod,
               'payment_status': 'completed',
               'transaction_id': 'txn_${DateTime.now().millisecondsSinceEpoch}',
@@ -318,24 +214,11 @@ class PurchaseService {
             .select()
             .single();
 
-        // Record points spending if applicable
-        if (pointsToUse != null && pointsToUse > 0) {
-          await _recordPointsSpending(
-            pointsSpent: pointsToUse,
-            purchaseId: response['id'],
-            discountAmount: amount - finalAmount,
-            description: 'Discount on module purchase',
-          );
-        }
-
         return {
           'success': true,
           'message': 'Module purchased successfully',
           'purchase_id': response['id'],
-          'original_amount': amount,
-          'final_amount': finalAmount,
-          'points_used': pointsToUse ?? 0,
-          'discount_amount': amount - finalAmount,
+          'amount': amount,
         };
       } catch (e) {
         return {'success': false, 'message': 'Purchase failed: $e'};
@@ -343,51 +226,18 @@ class PurchaseService {
     }) ?? {'success': false, 'message': 'User not authenticated'};
   }
 
-  // Purchase a lesson with optional points discount
+  // Purchase a lesson
   static Future<Map<String, dynamic>> purchaseLesson(
     String lessonId,
     double amount,
-    String paymentMethod, {
-    int? pointsToUse,
-  }) async {
+    String paymentMethod,
+  ) async {
     return await SupabaseService.requireAuth((userId) async {
       try {
         // Check if already has access
         final hasAccess = await hasAccessToLesson(lessonId);
         if (hasAccess) {
           return {'success': false, 'message': 'You already have access to this lesson'};
-        }
-
-        // Calculate final amount with points discount
-        double finalAmount = amount;
-        if (pointsToUse != null && pointsToUse > 0) {
-          // Get user's available points
-          final userPoints = await UserService.getUserPoints();
-          if (userPoints < pointsToUse) {
-            return {'success': false, 'message': 'Insufficient points'};
-          }
-
-          // Calculate maximum discount
-          final discountInfo = await PointsConfigService.calculateMaxDiscount(
-            purchaseType: 'lesson',
-            originalPrice: amount,
-            userPoints: userPoints,
-          );
-
-          if (discountInfo != null) {
-            final maxPointsToUse = discountInfo['max_points_to_use'] as int;
-            if (pointsToUse > maxPointsToUse) {
-              return {'success': false, 'message': 'Cannot use more than $maxPointsToUse points for this purchase'};
-            }
-
-            // Calculate actual discount
-            final currencyConfig = await PointsConfigService.getUserCurrencyConfig();
-            if (currencyConfig != null) {
-              final pointsPerCurrency = double.parse(currencyConfig['points_per_currency'].toString());
-              final discountAmount = pointsToUse / pointsPerCurrency;
-              finalAmount = amount - discountAmount;
-            }
-          }
         }
 
         // Create purchase record
@@ -397,7 +247,7 @@ class PurchaseService {
               'user_id': userId,
               'lesson_id': lessonId,
               'purchase_type': 'lesson',
-              'amount': finalAmount,
+              'amount': amount,
               'payment_method': paymentMethod,
               'payment_status': 'completed',
               'transaction_id': 'txn_${DateTime.now().millisecondsSinceEpoch}',
@@ -405,24 +255,11 @@ class PurchaseService {
             .select()
             .single();
 
-        // Record points spending if applicable
-        if (pointsToUse != null && pointsToUse > 0) {
-          await _recordPointsSpending(
-            pointsSpent: pointsToUse,
-            purchaseId: response['id'],
-            discountAmount: amount - finalAmount,
-            description: 'Discount on lesson purchase',
-          );
-        }
-
         return {
           'success': true,
           'message': 'Lesson purchased successfully',
           'purchase_id': response['id'],
-          'original_amount': amount,
-          'final_amount': finalAmount,
-          'points_used': pointsToUse ?? 0,
-          'discount_amount': amount - finalAmount,
+          'amount': amount,
         };
       } catch (e) {
         return {'success': false, 'message': 'Purchase failed: $e'};
@@ -454,54 +291,6 @@ class PurchaseService {
     });
   }
 
-  // Get user's points summary
-  static Future<PointsSummary> getUserPointsSummary() async {
-    return await SupabaseService.requireAuth((userId) async {
-      // Get total points from user
-      final userResponse = await _client
-          .from('users')
-          .select('total_points')
-          .eq('id', userId)
-          .single();
-
-      final totalPoints = userResponse['total_points'] ?? 0;
-
-      // Get points breakdown
-      final transactionsResponse = await _client
-          .from('points_transactions')
-          .select('transaction_type, points')
-          .eq('user_id', userId);
-
-      final breakdown = <String, int>{};
-      for (final transaction in transactionsResponse) {
-        final type = transaction['transaction_type'] as String;
-        final points = transaction['points'] as int;
-        breakdown[type] = (breakdown[type] ?? 0) + points;
-      }
-
-      // Get recent transactions
-      final recentResponse = await _client
-          .from('points_transactions')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', ascending: false)
-          .limit(10);
-
-      final recentTransactions = recentResponse
-          .map((item) => PointsTransaction.fromJson(item))
-          .toList();
-
-      return PointsSummary(
-        totalPoints: totalPoints,
-        breakdown: breakdown,
-        recentTransactions: recentTransactions,
-      );
-    }) ?? PointsSummary(
-      totalPoints: 0,
-      breakdown: {},
-      recentTransactions: [],
-    );
-  }
 
   // Get content pricing
   static Future<Map<String, double>> getContentPricing({

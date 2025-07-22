@@ -117,7 +117,6 @@ class _ModuleScreenState extends State<ModuleScreen> {
   }
 
   Future<void> _showPurchaseDialog(String type, String title, double price) async {
-    int? pointsToUse;
     
     showDialog(
       context: context,
@@ -132,31 +131,6 @@ class _ModuleScreenState extends State<ModuleScreen> {
                 Text('Название: $title'),
                 const SizedBox(height: 8),
                 Text('Цена: \$${price.toStringAsFixed(2)}'),
-                const SizedBox(height: 16),
-                Text('Ваши баллы: $userPoints'),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Использовать баллы (необязательно)',
-                    border: OutlineInputBorder(),
-                    helperText: '1 балл = \$0.01',
-                  ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    pointsToUse = int.tryParse(value);
-                  },
-                ),
-                if (pointsToUse != null && pointsToUse! > 0) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Скидка: \$${(pointsToUse! * 0.01).toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.green[600]),
-                  ),
-                  Text(
-                    'К доплате: \$${(price - (pointsToUse! * 0.01)).toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
               ],
             ),
           ),
@@ -168,7 +142,7 @@ class _ModuleScreenState extends State<ModuleScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                _executePurchaseWithPoints(price, pointsToUse);
+                _executePurchase(price);
               },
               child: const Text('Купить'),
             ),
@@ -178,7 +152,7 @@ class _ModuleScreenState extends State<ModuleScreen> {
     );
   }
 
-  Future<void> _executePurchaseWithPoints(double price, int? pointsToUse) async {
+  Future<void> _executePurchase(double price) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -200,7 +174,6 @@ class _ModuleScreenState extends State<ModuleScreen> {
         moduleId,
         price,
         'points_demo',
-        pointsToUse: pointsToUse,
       );
 
       Navigator.pop(context); // Close loading dialog
@@ -213,7 +186,6 @@ class _ModuleScreenState extends State<ModuleScreen> {
           ),
         );
         await _checkAccess(); // Refresh access status
-        await _loadUserPoints(); // Refresh points
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
