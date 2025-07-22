@@ -104,12 +104,29 @@ class _DashboardScreenState extends State<DashboardScreen>
       final results = await Future.wait([
         UserService.getUserStats(),
         _getRecentActivities(),
+        CourseService.getAllCourses(), // Load courses for stats
       ]);
 
       if (mounted) {
         setState(() {
           _userStats = results[0] as UserStats?;
           _recentActivities = results[1] as List<Map<String, dynamic>>;
+          final courses = results[2] as List<Map<String, dynamic>>;
+          
+          // Update user stats with real data
+          if (_userStats != null && courses.isNotEmpty) {
+            _userStats = UserStats(
+              coursesCompleted: _userStats!.coursesCompleted,
+              totalCourses: courses.length, // Use real course count
+              lessonsCompleted: _userStats!.lessonsCompleted,
+              totalLessons: _userStats!.totalLessons,
+              averageGrade: _userStats!.averageGrade,
+              studyStreak: _userStats!.studyStreak,
+              totalStudyHours: _userStats!.totalStudyHours,
+              certificatesEarned: _userStats!.certificatesEarned,
+            );
+          }
+          
           _isLoading = false;
         });
       }

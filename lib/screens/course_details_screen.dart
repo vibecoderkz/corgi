@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/course_models.dart';
 import '../screens/module_screen.dart';
 import '../services/course_service.dart';
@@ -20,19 +21,107 @@ class CourseDetailsScreen extends StatefulWidget {
   State<CourseDetailsScreen> createState() => _CourseDetailsScreenState();
 }
 
-class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
+class _CourseDetailsScreenState extends State<CourseDetailsScreen> 
+    with TickerProviderStateMixin {
   Map<String, dynamic>? fullCourseData;
   bool isLoading = true;
   bool hasAccess = false;
   bool isCheckingAccess = false;
   int userPoints = 0;
+  
+  // Animation controllers
+  late AnimationController _animationController;
+  late AnimationController _playButtonController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _playButtonScale;
+  
+  // Design constants
+  static const backgroundColor = Color(0xFFF8FAFC);
+  static const cardColor = Colors.white;
+  static const primaryColor = Color(0xFF6366F1);
+  static const textPrimary = Color(0xFF1F2937);
+  static const textSecondary = Color(0xFF6B7280);
+  
+  static const videoGradient = LinearGradient(
+    colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
+  static const studentsColor = Color(0xFF10B981);
+  static const projectsColor = Color(0xFF3B82F6);
+  static const qaColor = Color(0xFFF59E0B);
+  static const priceColor = Color(0xFF8B5CF6);
+  
+  static const accessStatusColor = Color(0xFF10B981);
+  static const accessBackgroundColor = Color(0xFFDCFCE7);
+  
+  static const cardBorderRadius = 16.0;
+  static const cardPadding = 20.0;
+  static const sectionSpacing = 24.0;
+  static const screenPadding = 20.0;
+  
+  static const cardShadow = [
+    BoxShadow(
+      color: Color(0x0F000000),
+      blurRadius: 20,
+      offset: Offset(0, 4),
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
+    _setupAnimations();
     _loadCourseDetails();
     _checkAccess();
     _loadUserPoints();
+  }
+  
+  void _setupAnimations() {
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+    
+    _playButtonController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+      ),
+    );
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+      ),
+    );
+    
+    _playButtonScale = Tween<double>(begin: 1.0, end: 0.9).animate(
+      CurvedAnimation(
+        parent: _playButtonController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    
+    _animationController.forward();
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _playButtonController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCourseDetails() async {
@@ -288,50 +377,89 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     final title = _getCourseData('title') ?? 'Course Details';
     
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/main',
-                (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
+      backgroundColor: backgroundColor,
+      appBar: _buildAppBar(title),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCourseHeader(context),
-                  _buildCourseStats(context),
-                  _buildPurchaseSection(context),
-                  _buildCourseInfo(context),
-                  _buildModulesSection(context),
-                ],
-              ),
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildAnimatedSection(
+                        child: _buildVideoPreviewSection(),
+                        delay: 0.0,
+                      ),
+                      _buildAnimatedSection(
+                        child: _buildCourseStats(),
+                        delay: 0.1,
+                      ),
+                      const SizedBox(height: sectionSpacing),
+                      if (hasAccess && !isCheckingAccess)
+                        _buildAnimatedSection(
+                          child: _buildAccessStatus(),
+                          delay: 0.2,
+                        )
+                      else if (!isCheckingAccess)
+                        _buildAnimatedSection(
+                          child: _buildPurchaseSection(),
+                          delay: 0.2,
+                        ),
+                      _buildAnimatedSection(
+                        child: _buildCourseDescription(),
+                        delay: 0.3,
+                      ),
+                      const SizedBox(height: sectionSpacing),
+                      _buildAnimatedSection(
+                        child: _buildModulesSection(),
+                        delay: 0.4,
+                      ),
+                      const SizedBox(height: 100), // Bottom padding
+                    ],
+                  ),
+                ),
+              ],
             ),
     );
   }
 
-  Widget _buildCourseHeader(BuildContext context) {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).primaryColor.withOpacity(0.8),
-            Theme.of(context).primaryColor,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  AppBar _buildAppBar(String title) {
+    return AppBar(
+      backgroundColor: const Color(0xFFF3F4F6),
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: textPrimary),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
         ),
+      ),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.home, color: textPrimary),
+          onPressed: () => Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/main',
+            (route) => false,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVideoPreviewSection() {
+    return Container(
+      height: 280,
+      margin: const EdgeInsets.fromLTRB(0, 0, 0, sectionSpacing),
+      decoration: const BoxDecoration(
+        gradient: videoGradient,
       ),
       child: Stack(
         children: [
@@ -339,44 +467,74 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (_getCourseData('video_preview_url') != null)
-                  const Icon(
-                    Icons.play_circle_outline,
-                    size: 64,
-                    color: Colors.white,
-                  )
-                else
-                  const Icon(
-                    Icons.school,
-                    size: 64,
-                    color: Colors.white,
+                GestureDetector(
+                  onTapDown: (_) => _playButtonController.forward(),
+                  onTapUp: (_) {
+                    _playButtonController.reverse();
+                    _handlePlayButton();
+                  },
+                  onTapCancel: () => _playButtonController.reverse(),
+                  child: AnimatedBuilder(
+                    animation: _playButtonScale,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _playButtonScale.value,
+                        child: Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.3),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.5),
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
+                      );
+                    },
                   ),
+                ),
                 const SizedBox(height: 16),
                 Text(
                   _getCourseData('title') ?? 'Course Title',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
           Positioned(
-            bottom: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _getCourseData('video_preview_url') != null ? 'Video Preview' : 'Image Preview',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
+            bottom: 20,
+            right: 20,
+            child: GestureDetector(
+              onTap: _handleVideoPreview,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: const Text(
+                  'Video Preview',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -386,46 +544,96 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     );
   }
 
-  Widget _buildCourseStats(BuildContext context) {
+  Widget _buildCourseStats() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(horizontal: screenPadding),
+      padding: const EdgeInsets.all(cardPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(cardBorderRadius),
+        boxShadow: cardShadow,
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Flexible(
-            child: _buildStatItem(
-              context,
-              'Students',
-              '${_getCourseData('students_enrolled') ?? 0}',
-              Icons.people,
-              Colors.green,
+          _buildStatItem(
+            Icons.people,
+            "${_getCourseData('students_enrolled') ?? 0}",
+            "Students",
+            studentsColor,
+          ),
+          _buildStatItem(
+            Icons.work,
+            "${_getCourseData('student_projects') ?? 0}",
+            "Projects",
+            projectsColor,
+          ),
+          _buildStatItem(
+            Icons.chat_bubble_outline,
+            "${_getCourseData('questions_answered') ?? 0}",
+            "Q&A",
+            qaColor,
+          ),
+          _buildStatItem(
+            Icons.attach_money,
+            "\$${_getCourseData('price')?.toStringAsFixed(2) ?? '0.00'}",
+            "Price",
+            priceColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccessStatus() {
+    return Container(
+      margin: const EdgeInsets.all(screenPadding),
+      padding: const EdgeInsets.all(cardPadding),
+      decoration: BoxDecoration(
+        color: accessBackgroundColor,
+        borderRadius: BorderRadius.circular(cardBorderRadius),
+        border: Border.all(
+          color: accessStatusColor.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: accessStatusColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check,
+              color: Colors.white,
+              size: 24,
             ),
           ),
-          Flexible(
-            child: _buildStatItem(
-              context,
-              'Projects',
-              '${_getCourseData('student_projects') ?? 0}',
-              Icons.work,
-              Colors.blue,
-            ),
-          ),
-          Flexible(
-            child: _buildStatItem(
-              context,
-              'Q&A',
-              '${_getCourseData('questions_answered') ?? 0}',
-              Icons.question_answer,
-              Colors.orange,
-            ),
-          ),
-          Flexible(
-            child: _buildStatItem(
-              context,
-              'Price',
-              '\$${_getCourseData('price') ?? 0}',
-              Icons.monetization_on,
-              Colors.purple,
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'У вас есть доступ к этому курсу',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: accessStatusColor,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Вы можете просматривать все модули и уроки',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF065F46),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -433,59 +641,15 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     );
   }
 
-  Widget _buildPurchaseSection(BuildContext context) {
-    if (isCheckingAccess) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (hasAccess) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.green[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green[300]!),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[600], size: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'У вас есть доступ к этому курсу',
-                      style: TextStyle(
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      'Вы можете просматривать все модули и уроки',
-                      style: TextStyle(
-                        color: Colors.green[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
+  Widget _buildPurchaseSection() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.all(screenPadding),
+      padding: const EdgeInsets.all(cardPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(cardBorderRadius),
+        boxShadow: cardShadow,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -527,118 +691,107 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _purchaseCourse,
-                  icon: const Icon(Icons.shopping_cart),
-                  label: Text(
-                    'Купить курс за \$${_getCourseData('price') ?? 0}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _purchaseCourse,
+              icon: const Icon(Icons.shopping_cart),
+              label: Text(
+                'Купить курс за \$${_getCourseData('price')?.toStringAsFixed(2) ?? '0.00'}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-            ],
-          ),
-          if (userPoints > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              'У вас есть $userPoints баллов для скидки!',
-              style: TextStyle(
-                color: Colors.green[600],
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  Widget _buildStatItem(IconData icon, String value, String label, Color color) {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          width: 50,
+          height: 50,
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: color, size: 20),
+          child: Icon(
+            icon,
+            color: color,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
-          value,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-        ),
-        Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
+          style: const TextStyle(
+            fontSize: 12,
+            color: textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCourseInfo(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
+  Widget _buildCourseDescription() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: screenPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Course Description',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             _getCourseData('description') ?? 'No description available',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  height: 1.6,
-                ),
+            style: const TextStyle(
+              fontSize: 16,
+              color: textSecondary,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
+          const SizedBox(height: 20),
+          Row(
             children: [
-              _buildInfoChip(
-                context,
-                _getCourseData('difficulty') ?? 'Beginner',
-                _getDifficultyColor(_getCourseData('difficulty') ?? 'Beginner'),
+              _buildDescriptionTag(
+                _getCourseData('difficulty') ?? 'Beginner', 
+                _getDifficultyColor(_getCourseData('difficulty') ?? 'Beginner')
               ),
-              _buildInfoChip(
-                context,
-                _getCourseData('estimated_time') ?? 'Unknown',
-                Colors.blue,
+              const SizedBox(width: 12),
+              _buildDescriptionTag(
+                _getCourseData('estimated_time') ?? 'Unknown', 
+                const Color(0xFF3B82F6)
               ),
-              _buildInfoChip(
-                context,
-                '${_getCourseData('modules') ?? 0} modules',
-                Colors.green,
+              const SizedBox(width: 12),
+              _buildDescriptionTag(
+                '${_getCourseData('modules') ?? 0} modules', 
+                const Color(0xFF10B981)
               ),
             ],
           ),
@@ -647,20 +800,23 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     );
   }
 
-  Widget _buildInfoChip(BuildContext context, String label, Color color) {
+  Widget _buildDescriptionTag(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: Text(
-        label,
+        text,
         style: TextStyle(
-          color: color,
-          fontSize: 12,
+          fontSize: 14,
           fontWeight: FontWeight.w500,
+          color: color,
         ),
       ),
     );
@@ -679,26 +835,28 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     }
   }
 
-  Widget _buildModulesSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
+  Widget _buildModulesSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: screenPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Course Modules',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+            ),
           ),
           const SizedBox(height: 16),
-          ..._buildModulesList(context),
+          ..._buildModulesList(),
         ],
       ),
     );
   }
 
-  List<Widget> _buildModulesList(BuildContext context) {
+  List<Widget> _buildModulesList() {
     // Try to get modules from different sources
     List<dynamic> modules = [];
     
@@ -763,11 +921,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     return modules.asMap().entries.map((entry) {
       final index = entry.key;
       final module = entry.value;
-      return _buildModuleCardFromData(context, module, index + 1);
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: _buildModuleCardFromData(module, index + 1),
+      );
     }).toList();
   }
 
-  Widget _buildModuleCardFromData(BuildContext context, dynamic moduleData, int moduleNumber) {
+  Widget _buildModuleCardFromData(dynamic moduleData, int moduleNumber) {
     // Handle both Module objects and Map<String, dynamic> from database
     String title = '';
     String description = '';
@@ -814,7 +975,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     }
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardBorderRadius)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -824,19 +987,16 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(cardBorderRadius),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               height: 120,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(cardBorderRadius)),
                 gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor.withOpacity(0.7),
-                    Theme.of(context).primaryColor.withOpacity(0.5),
-                  ],
+                  colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -847,18 +1007,11 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (videoPreviewUrl != null)
-                          const Icon(
-                            Icons.play_circle_outline,
-                            size: 40,
-                            color: Colors.white,
-                          )
-                        else
-                          const Icon(
-                            Icons.book,
-                            size: 40,
-                            color: Colors.white,
-                          ),
+                        Icon(
+                          videoPreviewUrl != null ? Icons.play_circle_outline : Icons.book,
+                          size: 40,
+                          color: Colors.white,
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           'Module $moduleNumber',
@@ -894,38 +1047,50 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(cardPadding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     description,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: textSecondary,
+                      height: 1.4,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(Icons.book, size: 16, color: Colors.grey[600]),
+                      Icon(Icons.book, size: 16, color: textSecondary),
                       const SizedBox(width: 4),
                       Text(
                         '$lessonsCount lessons',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: textSecondary,
+                        ),
                       ),
                       const SizedBox(width: 16),
-                      Icon(Icons.people, size: 16, color: Colors.grey[600]),
+                      Icon(Icons.people, size: 16, color: textSecondary),
                       const SizedBox(width: 4),
                       Text(
-                        '0 completed', // TODO: Get actual completion count
-                        style: Theme.of(context).textTheme.bodySmall,
+                        '0 completed',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -933,16 +1098,18 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'Tap to view details',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).primaryColor,
-                            ),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                      Icon(
+                      const Icon(
                         Icons.arrow_forward,
                         size: 16,
-                        color: Theme.of(context).primaryColor,
+                        color: primaryColor,
                       ),
                     ],
                   ),
@@ -1096,5 +1263,81 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
         ),
       ),
     );
+  }
+  
+  Widget _buildAnimatedSection({required Widget child, double delay = 0.0}) {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, _) {
+        final animation = Tween<double>(begin: 0, end: 1).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Interval(delay, delay + 0.3, curve: Curves.easeOut),
+          ),
+        );
+        
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.2),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+  
+  
+  void _handleVideoPreview() {
+    HapticFeedback.lightImpact();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Video Preview'),
+        content: const Text('Video player would be implemented here'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handlePlayButton() {
+    HapticFeedback.lightImpact();
+    
+    if (hasAccess) {
+      // Navigate to first module if available
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Start Course'),
+          content: const Text('Navigate to course modules would be implemented here'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Navigate to course content
+              },
+              child: const Text('Start Learning'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Show purchase dialog
+      _purchaseCourse();
+    }
   }
 }

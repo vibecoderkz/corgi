@@ -84,14 +84,39 @@ class _CoursesScreenState extends State<CoursesScreen>
     });
 
     try {
-      // Load sample courses data
-      courses = _getSampleCourses();
+      // Load real courses from database
+      final realCourses = await CourseService.getAllCourses();
+      
+      if (realCourses.isNotEmpty) {
+        // Convert database courses to Course objects
+        courses = realCourses.map((courseData) => Course(
+          id: courseData['id'] ?? '',
+          title: courseData['title'] ?? 'Unknown Course',
+          description: courseData['description'] ?? 'No description available',
+          duration: int.tryParse(courseData['estimated_time']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '4') ?? 4,
+          students: courseData['students_enrolled'] ?? 0,
+          projects: courseData['student_projects'] ?? 0,
+          qna: courseData['questions_answered'] ?? 0,
+          level: courseData['difficulty'] ?? 'Beginner',
+          status: _determineStatus(courseData),
+          price: double.tryParse(courseData['price']?.toString() ?? '0') ?? 0.0,
+          gradient: _getGradientForCourse(courseData['difficulty'] ?? 'Beginner'),
+          icon: _getIconForCourse(courseData['difficulty'] ?? 'Beginner'),
+        )).toList();
+      } else {
+        // Fallback to sample data if no database courses
+        courses = _getSampleCourses();
+      }
+      
       filteredCourses = courses;
       
       // Start animations after loading
       _animationController.forward();
     } catch (e) {
-      // Handle error
+      // Fallback to sample data on error
+      courses = _getSampleCourses();
+      filteredCourses = courses;
+      _animationController.forward();
     }
 
     setState(() {
@@ -174,6 +199,54 @@ class _CoursesScreenState extends State<CoursesScreen>
         icon: Icons.analytics,
       ),
     ];
+  }
+
+  String _determineStatus(Map<String, dynamic> courseData) {
+    // You can implement logic here to determine course status based on user data
+    // For now, return a default status
+    return "Not Started";
+  }
+  
+  LinearGradient _getGradientForCourse(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'beginner':
+        return const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'intermediate':
+        return const LinearGradient(
+          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'advanced':
+        return const LinearGradient(
+          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      default:
+        return const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+    }
+  }
+  
+  IconData _getIconForCourse(String difficulty) {
+    switch (difficulty.toLowerCase()) {
+      case 'beginner':
+        return Icons.psychology;
+      case 'intermediate':
+        return Icons.developer_board;
+      case 'advanced':
+        return Icons.memory;
+      default:
+        return Icons.analytics;
+    }
   }
 
   void _filterCourses(String filter) {
@@ -409,12 +482,7 @@ class CourseCard extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (context) => CourseDetailsScreen(
-                  courseData: {
-                    'id': course.id,
-                    'title': course.title,
-                    'description': course.description,
-                    'price': course.price,
-                  },
+                  course: course,
                 ),
               ),
             );
