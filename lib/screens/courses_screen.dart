@@ -12,17 +12,70 @@ class CoursesScreen extends StatefulWidget {
   State<CoursesScreen> createState() => _CoursesScreenState();
 }
 
-class _CoursesScreenState extends State<CoursesScreen> {
-  List<Map<String, dynamic>> courses = [];
-  Map<String, Map<String, dynamic>> courseStats = {};
-  Map<String, Map<String, dynamic>> courseProgress = {};
+class _CoursesScreenState extends State<CoursesScreen> 
+    with TickerProviderStateMixin {
+  
+  // Data
+  List<Course> courses = [];
+  List<Course> filteredCourses = [];
   bool isLoading = true;
-  String selectedFilter = 'All';
+  String selectedFilter = "All";
+  final List<String> filters = ["All", "In Progress", "Not Started", "Completed"];
+  
+  // Animation
+  late AnimationController _animationController;
+  
+  // Design constants
+  static const backgroundColor = Color(0xFFF8FAFC);
+  static const cardColor = Colors.white;
+  static const primaryColor = Color(0xFF6366F1);
+  static const textPrimary = Color(0xFF1F2937);
+  static const textSecondary = Color(0xFF6B7280);
+  static const purpleGradient = LinearGradient(
+    colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  static const purchasedColor = Color(0xFF10B981);
+  static const beginnerColor = Color(0xFF10B981);
+  static const intermediateColor = Color(0xFFF59E0B);
+  
+  // Sizes
+  static const double cardBorderRadius = 16.0;
+  static const double cardPadding = 20.0;
+  static const double cardImageHeight = 200.0;
+  static const double chipBorderRadius = 20.0;
+  static const double filterChipHeight = 50.0;
+  static const double screenPadding = 20.0;
+  static const double cardSpacing = 16.0;
+  static const double sectionSpacing = 16.0;
+  
+  static const List<BoxShadow> cardShadow = [
+    BoxShadow(
+      color: Color(0x1A000000),
+      blurRadius: 25,
+      offset: Offset(0, 8),
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
+    _setupAnimations();
     _loadCourses();
+  }
+
+  void _setupAnimations() {
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCourses() async {
@@ -31,381 +84,521 @@ class _CoursesScreenState extends State<CoursesScreen> {
     });
 
     try {
-      // Load courses from database
-      final loadedCourses = await CourseService.getAllCourses();
+      // Load sample courses data
+      courses = _getSampleCourses();
+      filteredCourses = courses;
       
-      // Load stats and progress for each course
-      for (final course in loadedCourses) {
-        final courseId = course['id'];
-        
-        // Load course statistics
-        final stats = await CourseService.getCourseStats(courseId);
-        courseStats[courseId] = stats;
-        
-        // Load user progress if authenticated
-        try {
-          final progress = await CourseService.getUserCourseProgress(courseId);
-          courseProgress[courseId] = progress;
-        } catch (e) {
-          // User not authenticated or no access
-          courseProgress[courseId] = {
-            'has_access': false,
-            'progress': 0.0,
-            'completed_modules': 0,
-            'total_modules': 0,
-          };
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          courses = loadedCourses;
-          isLoading = false;
-        });
-      }
+      // Start animations after loading
+      _animationController.forward();
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load courses: $e')),
-        );
-      }
+      // Handle error
     }
+
+    setState(() {
+      isLoading = false;
+    });
   }
 
-  List<Map<String, dynamic>> get filteredCourses {
-    if (selectedFilter == 'All') return courses;
-    
-    return courses.where((course) {
-      final courseId = course['id'];
-      final progress = courseProgress[courseId];
-      
-      switch (selectedFilter) {
-        case 'In Progress':
-          return progress?['has_access'] == true && (progress?['progress'] ?? 0.0) > 0 && (progress?['progress'] ?? 0.0) < 1.0;
-        case 'Not Started':
-          return progress?['has_access'] != true || (progress?['progress'] ?? 0.0) == 0.0;
-        case 'Completed':
-          return progress?['has_access'] == true && (progress?['progress'] ?? 0.0) >= 1.0;
-        default:
-          return true;
+  List<Course> _getSampleCourses() {
+    return [
+      Course(
+        id: '1',
+        title: "Introduction to AI",
+        description: "Learn the fundamentals of artificial intelligence and how it's changing our world",
+        duration: 4,
+        students: 1,
+        projects: 0,
+        qna: 4,
+        level: "Beginner",
+        status: "Purchased",
+        price: 29.99,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        icon: Icons.psychology,
+      ),
+      Course(
+        id: '2',
+        title: "Machine Learning Basics",
+        description: "Master the fundamentals of machine learning algorithms and applications",
+        duration: 6,
+        students: 0,
+        projects: 3,
+        qna: 8,
+        level: "Intermediate",
+        status: "Not Started",
+        price: 49.99,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        icon: Icons.developer_board,
+      ),
+      Course(
+        id: '3',
+        title: "Deep Learning Advanced",
+        description: "Dive deep into neural networks and advanced machine learning concepts",
+        duration: 8,
+        students: 2,
+        projects: 5,
+        qna: 12,
+        level: "Advanced",
+        status: "In Progress",
+        price: 79.99,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        icon: Icons.memory,
+      ),
+      Course(
+        id: '4',
+        title: "Data Science Fundamentals",
+        description: "Learn data analysis, visualization, and statistical modeling techniques",
+        duration: 5,
+        students: 0,
+        projects: 2,
+        qna: 6,
+        level: "Beginner",
+        status: "Completed",
+        price: 39.99,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        icon: Icons.analytics,
+      ),
+    ];
+  }
+
+  void _filterCourses(String filter) {
+    setState(() {
+      selectedFilter = filter;
+      if (filter == "All") {
+        filteredCourses = courses;
+      } else {
+        filteredCourses = courses.where((course) => course.status == filter).toList();
       }
-    }).toList();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Courses'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SearchScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/main',
-                (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadCourses,
-        child: Column(
-          children: [
-            _buildFilterChips(),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : filteredCourses.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No courses found',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: filteredCourses.length,
-                          itemBuilder: (context, index) {
-                            return _buildCourseCard(filteredCourses[index]);
-                          },
-                        ),
+      backgroundColor: backgroundColor,
+      appBar: _buildAppBar(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                const SizedBox(height: sectionSpacing),
+                _buildFilterChips(),
+                const SizedBox(height: sectionSpacing),
+                _buildCoursesList(),
+              ],
             ),
-          ],
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      title: const Text(
+        'Courses',
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
         ),
       ),
+      automaticallyImplyLeading: false,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search, color: textSecondary, size: 24),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SearchScreen()),
+            );
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.home, color: textSecondary, size: 24),
+          onPressed: () {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/main',
+              (route) => false,
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+      ],
     );
   }
 
   Widget _buildFilterChips() {
-    final filters = ['All', 'In Progress', 'Not Started', 'Completed'];
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: filters.map((filter) {
+    return SizedBox(
+      height: filterChipHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: screenPadding),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: filters.length,
+          itemBuilder: (context, index) {
+            final filter = filters[index];
             final isSelected = selectedFilter == filter;
+            
             return Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 12),
               child: FilterChip(
-                label: Text(filter),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSelected) const Icon(Icons.check, size: 16, color: Colors.white),
+                    if (isSelected) const SizedBox(width: 4),
+                    Text(filter),
+                  ],
+                ),
                 selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    selectedFilter = filter;
-                  });
+                onSelected: (bool selected) {
+                  _filterCourses(filter);
                 },
+                backgroundColor: Colors.transparent,
+                selectedColor: primaryColor,
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+                side: BorderSide(
+                  color: isSelected ? primaryColor : const Color(0xFFE5E7EB),
+                ),
               ),
             );
-          }).toList(),
+          },
         ),
       ),
     );
   }
 
-  Widget _buildCourseCard(Map<String, dynamic> course) {
-    final courseId = course['id'];
-    final stats = courseStats[courseId] ?? {};
-    final progress = courseProgress[courseId] ?? {};
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CourseDetailsScreen(courseData: course),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 180,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor.withOpacity(0.8),
-                    Theme.of(context).primaryColor,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  _getCourseIcon(course['title']),
-                  size: 64,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          course['title'],
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      _buildDifficultyChip(course['difficulty']),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    course['description'],
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          course['estimated_time'],
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(Icons.people, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          '${stats['students_enrolled'] ?? 0} students',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.work, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          '${stats['student_projects'] ?? 0} projects',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(Icons.question_answer, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          '${stats['questions_answered'] ?? 0} Q&A',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (progress['has_access'] == true)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Purchased',
-                            style: TextStyle(
-                              color: Colors.green[700],
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      else
-                        const SizedBox.shrink(),
-                      Text(
-                        '\$${course['price']}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Theme.of(context).primaryColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ],
-                  ),
-                  if (progress['has_access'] == true && (progress['progress'] ?? 0.0) > 0) ...[
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Progress',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            Text(
-                              '${((progress['progress'] ?? 0.0) * 100).toInt()}%',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: progress['progress'] ?? 0.0,
-                          backgroundColor: Colors.grey[300],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${progress['completed_modules'] ?? 0} of ${progress['total_modules'] ?? 0} modules completed',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+  Widget _buildCoursesList() {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: screenPadding),
+        child: ListView.builder(
+          itemCount: filteredCourses.length,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: cardSpacing),
+              child: _buildAnimatedCourseCard(filteredCourses[index], index),
+            );
+          },
         ),
       ),
     );
   }
 
-  IconData _getCourseIcon(String title) {
-    if (title.contains('AI') || title.contains('Intelligence')) {
-      return Icons.psychology;
-    } else if (title.contains('Machine Learning')) {
-      return Icons.memory;
-    } else if (title.contains('Deep Learning')) {
-      return Icons.hub;
-    } else if (title.contains('Language')) {
-      return Icons.translate;
-    } else if (title.contains('Vision')) {
-      return Icons.remove_red_eye;
-    }
-    return Icons.school;
+  Widget _buildAnimatedCourseCard(Course course, int index) {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        final animation = Tween<double>(begin: 0, end: 1).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Interval(
+              index * 0.1,
+              (index * 0.1) + 0.3,
+              curve: Curves.easeOut,
+            ),
+          ),
+        );
+        
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.3),
+              end: Offset.zero,
+            ).animate(animation),
+            child: CourseCard(course: course, index: index),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Course Model
+class Course {
+  final String id;
+  final String title;
+  final String description;
+  final int duration;
+  final int students;
+  final int projects;
+  final int qna;
+  final String level;
+  final String status;
+  final double price;
+  final LinearGradient gradient;
+  final IconData icon;
+  
+  Course({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.duration,
+    required this.students,
+    required this.projects,
+    required this.qna,
+    required this.level,
+    required this.status,
+    required this.price,
+    required this.gradient,
+    required this.icon,
+  });
+}
+
+// Course Card Widget
+class CourseCard extends StatelessWidget {
+  final Course course;
+  final int index;
+  
+  const CourseCard({super.key, required this.course, required this.index});
+  
+  static const backgroundColor = Color(0xFFF8FAFC);
+  static const cardColor = Colors.white;
+  static const primaryColor = Color(0xFF6366F1);
+  static const textPrimary = Color(0xFF1F2937);
+  static const textSecondary = Color(0xFF6B7280);
+  static const purchasedColor = Color(0xFF10B981);
+  static const beginnerColor = Color(0xFF10B981);
+  static const intermediateColor = Color(0xFFF59E0B);
+  static const advancedColor = Color(0xFFEF4444);
+  
+  static const double cardBorderRadius = 16.0;
+  static const double cardPadding = 20.0;
+  static const double cardImageHeight = 200.0;
+  static const double chipBorderRadius = 20.0;
+  
+  static const List<BoxShadow> cardShadow = [
+    BoxShadow(
+      color: Color(0x1A000000),
+      blurRadius: 25,
+      offset: Offset(0, 8),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardBorderRadius)),
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CourseDetailsScreen(
+                  courseData: {
+                    'id': course.id,
+                    'title': course.title,
+                    'description': course.description,
+                    'price': course.price,
+                  },
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(cardBorderRadius),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildCourseImage(),
+              _buildCourseContent(),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildDifficultyChip(String difficulty) {
-    Color color;
-    switch (difficulty) {
-      case 'Beginner':
-        color = Colors.green;
+  Widget _buildCourseImage() {
+    return Container(
+      height: cardImageHeight,
+      decoration: BoxDecoration(
+        gradient: course.gradient,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(cardBorderRadius)),
+      ),
+      child: Center(
+        child: Icon(
+          course.icon,
+          size: 60,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCourseContent() {
+    return Padding(
+      padding: const EdgeInsets.all(cardPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  course.title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _buildLevelChip(),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            course.description,
+            style: const TextStyle(
+              fontSize: 14,
+              color: textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildCourseMetadata(),
+          const SizedBox(height: 16),
+          _buildCourseFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseMetadata() {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      children: [
+        _buildMetadataItem(Icons.access_time, "${course.duration} weeks"),
+        _buildMetadataItem(Icons.people, "${course.students} students"),
+        _buildMetadataItem(Icons.work, "${course.projects} projects"),
+        _buildMetadataItem(Icons.chat_bubble_outline, "${course.qna} Q&A"),
+      ],
+    );
+  }
+
+  Widget _buildMetadataItem(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: textSecondary),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            color: textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLevelChip() {
+    Color chipColor;
+    switch (course.level) {
+      case "Beginner":
+        chipColor = beginnerColor;
         break;
-      case 'Intermediate':
-        color = Colors.orange;
+      case "Intermediate":
+        chipColor = intermediateColor;
         break;
-      case 'Advanced':
-        color = Colors.red;
+      case "Advanced":
+        chipColor = advancedColor;
         break;
       default:
-        color = Colors.grey;
+        chipColor = textSecondary;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: chipColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(chipBorderRadius),
+        border: Border.all(color: chipColor),
+      ),
+      child: Text(
+        course.level,
+        style: TextStyle(
+          fontSize: 12,
+          color: chipColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCourseFooter() {
+    Color statusColor;
+    switch (course.status) {
+      case "Purchased":
+      case "Completed":
+        statusColor = purchasedColor;
+        break;
+      case "In Progress":
+        statusColor = intermediateColor;
+        break;
+      case "Not Started":
+        statusColor = textSecondary;
+        break;
+      default:
+        statusColor = textSecondary;
     }
 
-    return Chip(
-      label: Text(
-        difficulty,
-        style: TextStyle(color: color, fontSize: 12),
-      ),
-      backgroundColor: color.withOpacity(0.1),
-      side: BorderSide(color: color.withOpacity(0.5)),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(chipBorderRadius),
+          ),
+          child: Text(
+            course.status,
+            style: TextStyle(
+              fontSize: 12,
+              color: statusColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          "\$${course.price.toStringAsFixed(2)}",
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: textPrimary,
+          ),
+        ),
+      ],
     );
   }
 }
