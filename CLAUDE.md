@@ -55,13 +55,35 @@ flutter build web --release  # Web
 
 ### Environment Setup
 ```bash
-# Create .env file with Supabase credentials:
+# Create .env file with required credentials:
+# Supabase Configuration
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# OneSignal Push Notifications
+ONESIGNAL_APP_ID=your_onesignal_app_id_here
+ONESIGNAL_REST_API_KEY=your_onesignal_rest_api_key_here
+ONESIGNAL_USER_AUTH_KEY=your_onesignal_user_auth_key_here
+ONESIGNAL_WEB_PUSH_ID=your_web_push_id_here
 
 # Install iOS dependencies (macOS only)
 cd ios && pod install && cd ..
 ```
+
+### OneSignal Setup Instructions
+1. **Create OneSignal Account**: Go to https://onesignal.com/ and create an account
+2. **Create New App**: Click "Add App" and configure for your platforms (iOS, Android, Web)
+3. **Get Credentials**: 
+   - **App ID**: Found in Settings > Keys & IDs
+   - **REST API Key**: Found in Settings > Keys & IDs  
+   - **User Auth Key**: Found in Account Settings > API Keys
+   - **Web Push ID**: Found in Settings > Web Configuration (if using web platform)
+4. **Update .env**: Replace placeholder values with your actual OneSignal credentials
+5. **Platform Configuration**:
+   - **Android**: Follow OneSignal's Firebase setup guide
+   - **iOS**: Configure Apple Push Notification certificates
+   - **Web**: Add OneSignal SDK to your web build
 
 ## Architecture Overview
 

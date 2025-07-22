@@ -3,7 +3,6 @@ import '../../services/admin_service.dart';
 import 'create_course_screen.dart';
 import 'manage_courses_screen.dart';
 import 'manage_modules_lessons_screen.dart';
-import 'points_settings_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -233,14 +232,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               },
             ),
             _buildActionCard(
-              'Points Settings',
-              Icons.star,
-              Colors.amber,
+              'Manage Modules & Lessons',
+              Icons.playlist_play,
+              Colors.purple,
               () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const PointsSettingsScreen(),
+                    builder: (context) => const ManageModulesLessonsScreen(),
                   ),
                 );
               },
@@ -253,19 +252,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 // TODO: Implement analytics screen
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Analytics coming soon!')),
-                );
-              },
-            ),
-            _buildActionCard(
-              'Manage Modules & Lessons',
-              Icons.playlist_play,
-              Colors.purple,
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ManageModulesLessonsScreen(),
-                  ),
                 );
               },
             ),

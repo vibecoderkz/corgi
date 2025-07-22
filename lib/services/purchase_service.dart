@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import '../models/purchase_models.dart';
-import 'points_config_service.dart';
 import 'user_service.dart';
 
 class PurchaseService {

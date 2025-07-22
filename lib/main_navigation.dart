@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/courses_screen.dart';
-import 'screens/leaderboard_screen.dart';
-import 'screens/community_screen.dart';
 import 'screens/profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -20,8 +18,6 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = [
     const DashboardScreen(),
     const CoursesScreen(),
-    const LeaderboardScreen(),
-    const CommunityScreen(),
     const ProfileScreen(),
   ];
 
@@ -65,16 +61,6 @@ class _MainNavigationState extends State<MainNavigation> {
             icon: Icon(Icons.school_outlined),
             activeIcon: Icon(Icons.school),
             label: 'Courses',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.leaderboard_outlined),
-            activeIcon: Icon(Icons.leaderboard),
-            label: 'Leaderboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.group_outlined),
-            activeIcon: Icon(Icons.group),
-            label: 'Community',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

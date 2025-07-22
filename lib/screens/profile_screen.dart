@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/admin_service.dart';
 import '../services/user_service.dart';
-import '../services/points_service.dart';
 import '../models/purchase_models.dart';
 import '../models/main_page_models.dart';
 import '../screens/settings_screen.dart';
@@ -25,18 +24,16 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   bool _isLoadingAdminStatus = true;
   Map<String, dynamic>? _userProfile;
   UserStats? _userStats;
-  PointsSummary? _pointsSummary;
   List<Map<String, dynamic>> _userSkills = [];
   List<Map<String, dynamic>> _userAchievements = [];
   List<Map<String, dynamic>> _userCertificates = [];
   bool _isLoading = true;
   String _userRole = 'student';
-  int _totalPoints = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadUserData();
   }
 
@@ -57,8 +54,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
       final results = await Future.wait([
         UserService.getCurrentUserProfile(),
         UserService.getUserStats(),
-        PointsService.getUserPointsSummary(),
-        PointsService.getUserTotalPoints(),
         UserService.getUserSkillProgress(currentUser.id),
         UserService.getUserAchievements(currentUser.id),
         UserService.getUserCertificates(currentUser.id),
@@ -70,13 +65,11 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
         setState(() {
           _userProfile = results[0] as Map<String, dynamic>?;
           _userStats = results[1] as UserStats?;
-          _pointsSummary = results[2] as PointsSummary?;
-          _totalPoints = results[3] as int;
-          _userSkills = results[4] as List<Map<String, dynamic>>;
-          _userAchievements = results[5] as List<Map<String, dynamic>>;
-          _userCertificates = results[6] as List<Map<String, dynamic>>;
-          _isAdmin = results[7] as bool;
-          _userRole = results[8] as String;
+          _userSkills = results[2] as List<Map<String, dynamic>>;
+          _userAchievements = results[3] as List<Map<String, dynamic>>;
+          _userCertificates = results[4] as List<Map<String, dynamic>>;
+          _isAdmin = results[5] as bool;
+          _userRole = results[6] as String;
           _isLoadingAdminStatus = false;
           _isLoading = false;
         });
@@ -280,12 +273,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildInfoChip(
-                    'Баллы',
-                    '$_totalPoints',
-                    Icons.star,
-                    Colors.orange[600]!,
-                  ),
-                  _buildInfoChip(
                     'Курсы',
                     '${_userStats?.coursesCompleted ?? 0}/${_userStats?.totalCourses ?? 0}',
                     Icons.school,
@@ -487,7 +474,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
               unselectedLabelColor: Colors.grey,
               indicatorColor: Colors.indigo[600],
               tabs: const [
-                Tab(icon: Icon(Icons.star), text: 'Баллы'),
                 Tab(icon: Icon(Icons.psychology), text: 'Навыки'),
                 Tab(icon: Icon(Icons.emoji_events), text: 'Достижения'),
                 Tab(icon: Icon(Icons.card_membership), text: 'Сертификаты'),
@@ -498,7 +484,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildPointsTab(),
                   _buildSkillsTab(),
                   _buildAchievementsTab(),
                   _buildCertificatesTab(),
@@ -511,114 +496,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildPointsTab() {
-    if (_pointsSummary == null) {
-      return const Center(child: Text('Нет данных о баллах'));
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange[400]!, Colors.orange[600]!],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.star, color: Colors.white, size: 32),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Всего баллов',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      '$_totalPoints',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Разбор по активностям',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _pointsSummary!.breakdown.entries.length,
-              itemBuilder: (context, index) {
-                final entry = _pointsSummary!.breakdown.entries.elementAt(index);
-                return _buildPointsBreakdownItem(entry.key, entry.value);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPointsBreakdownItem(String activityType, int points) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _getActivityIcon(activityType),
-            color: _getActivityColor(activityType),
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _translateActivityType(activityType),
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '+$points',
-              style: TextStyle(
-                color: Colors.green[700],
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSkillsTab() {
     if (_userSkills.isEmpty) {
@@ -860,56 +737,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     }
   }
 
-  IconData _getActivityIcon(String activityType) {
-    switch (activityType) {
-      case 'lesson_completed':
-        return Icons.book;
-      case 'homework_completed':
-        return Icons.assignment;
-      case 'module_completed':
-        return Icons.folder;
-      case 'course_completed':
-        return Icons.school;
-      case 'useful_post':
-        return Icons.thumb_up;
-      default:
-        return Icons.star;
-    }
-  }
-
-  Color _getActivityColor(String activityType) {
-    switch (activityType) {
-      case 'lesson_completed':
-        return Colors.green[600]!;
-      case 'homework_completed':
-        return Colors.blue[600]!;
-      case 'module_completed':
-        return Colors.orange[600]!;
-      case 'course_completed':
-        return Colors.purple[600]!;
-      case 'useful_post':
-        return Colors.teal[600]!;
-      default:
-        return Colors.grey[600]!;
-    }
-  }
-
-  String _translateActivityType(String activityType) {
-    switch (activityType) {
-      case 'lesson_completed':
-        return 'Уроки завершены';
-      case 'homework_completed':
-        return 'Домашние задания';
-      case 'module_completed':
-        return 'Модули завершены';
-      case 'course_completed':
-        return 'Курсы завершены';
-      case 'useful_post':
-        return 'Полезные посты';
-      default:
-        return activityType;
-    }
-  }
 
   void _handleMenuAction(String action) {
     switch (action) {

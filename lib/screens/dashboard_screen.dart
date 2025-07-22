@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/main_page_models.dart';
-import '../models/purchase_models.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
-import '../services/points_service.dart';
 import '../services/course_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -19,8 +17,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _error = '';
   
   // Dashboard data
-  int _totalPoints = 0;
-  PointsSummary? _pointsSummary;
   UserStats? _userStats;
   List<Map<String, dynamic>> _recentActivities = [];
 
@@ -39,18 +35,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // Load data concurrently
       final results = await Future.wait([
-        PointsService.getUserTotalPoints(),
-        PointsService.getUserPointsSummary(),
         UserService.getUserStats(),
         _getRecentActivities(),
       ]);
 
       if (mounted) {
         setState(() {
-          _totalPoints = results[0] as int;
-          _pointsSummary = results[1] as PointsSummary?;
-          _userStats = results[2] as UserStats?;
-          _recentActivities = results[3] as List<Map<String, dynamic>>;
+          _userStats = results[0] as UserStats?;
+          _recentActivities = results[1] as List<Map<String, dynamic>>;
           _isLoading = false;
         });
       }
@@ -121,8 +113,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(height: 24),
                           _buildProgressSection(),
                           const SizedBox(height: 24),
-                          _buildPointsBreakdown(),
-                          const SizedBox(height: 24),
                           _buildQuickActions(),
                           const SizedBox(height: 24),
                           _buildRecentActivity(),
@@ -191,12 +181,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Colors.blue[600]!,
                 ),
                 _buildStatCard(
-                  'Баллы', 
-                  '$_totalPoints', 
-                  Icons.star,
-                  Colors.orange[600]!,
-                ),
-                _buildStatCard(
                   'Уроки', 
                   '$completedLessons', 
                   Icons.book,
@@ -248,77 +232,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildPointsBreakdown() {
-    if (_pointsSummary == null) return const SizedBox.shrink();
 
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.analytics, color: Colors.purple[600]),
-                const SizedBox(width: 8),
-                Text(
-                  'Разбор баллов',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ..._pointsSummary!.breakdown.entries.map((entry) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _translateActivityType(entry.key),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.green[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '+${entry.value}',
-                      style: TextStyle(
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _translateActivityType(String activityType) {
-    switch (activityType) {
-      case 'lesson_completed':
-        return 'Уроки завершены';
-      case 'homework_completed':
-        return 'Домашние задания';
-      case 'module_completed':
-        return 'Модули завершены';
-      case 'course_completed':
-        return 'Курсы завершены';
-      case 'useful_post':
-        return 'Полезные посты';
-      default:
-        return activityType;
-    }
-  }
 
   Widget _buildQuickActions() {
     return Column(
