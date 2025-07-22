@@ -319,15 +319,27 @@ class CourseService {
         final moduleId = lesson['module_id'];
         final courseId = lesson['modules']['course_id'];
 
-        // Award points for lesson completion
-        final pointsResult = await _client.rpc('award_activity_points', params: {
-          'p_user_id': userId,
-          'p_activity_type': 'lesson_completed',
-          'p_reference_id': lessonId,
-          'p_description': 'Lesson completed: ${lesson['title'] ?? 'Unknown'}',
+        // Get lesson completion points from config
+        final pointsConfig = await _client
+            .from('points_config')
+            .select('base_points, multiplier')
+            .eq('activity_type', 'lesson_completed')
+            .eq('is_active', true)
+            .maybeSingle();
+            
+        final basePoints = pointsConfig?['base_points'] ?? 5;
+        final multiplier = pointsConfig?['multiplier'] ?? 1.0;
+        final lessonCompletionPoints = (basePoints * multiplier).round();
+        
+        await _client.from('points_transactions').insert({
+          'user_id': userId,
+          'points': lessonCompletionPoints,
+          'transaction_type': 'lesson_completed',
+          'reference_id': lessonId,
+          'description': 'Lesson completed: ${lesson['title'] ?? 'Unknown'}',
         });
 
-        final pointsEarned = pointsResult ?? 0;
+        final pointsEarned = lessonCompletionPoints;
 
         // Insert progress record
         await _client.from('user_progress').insert({
@@ -344,24 +356,100 @@ class CourseService {
         // Check if module is now completed
         final isModuleComplete = await _isModuleCompleted(userId, moduleId);
         if (isModuleComplete) {
-          // Award module completion points
-          await _client.rpc('award_activity_points', params: {
-            'p_user_id': userId,
-            'p_activity_type': 'module_completed',
-            'p_reference_id': moduleId,
-            'p_description': 'Module completed: ${lesson['modules']['title'] ?? 'Unknown'}',
-          });
+          // Check if module completion already recorded
+          final existingModuleProgress = await _client
+              .from('user_progress')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('module_id', moduleId)
+              .eq('progress_type', 'module_completed')
+              .maybeSingle();
+
+          if (existingModuleProgress == null) {
+            // Get module completion points from config
+            final modulePointsConfig = await _client
+                .from('points_config')
+                .select('base_points, multiplier')
+                .eq('activity_type', 'module_completed')
+                .eq('is_active', true)
+                .maybeSingle();
+                
+            final moduleBasePoints = modulePointsConfig?['base_points'] ?? 50;
+            final moduleMultiplier = modulePointsConfig?['multiplier'] ?? 1.0;
+            final moduleCompletionPoints = (moduleBasePoints * moduleMultiplier).round();
+            
+            await _client.from('points_transactions').insert({
+              'user_id': userId,
+              'points': moduleCompletionPoints,
+              'transaction_type': 'module_completed',
+              'reference_id': moduleId,
+              'description': 'Module completed: ${lesson['modules']['title'] ?? 'Unknown'}',
+            });
+
+            // Insert module progress record
+            await _client.from('user_progress').insert({
+              'user_id': userId,
+              'module_id': moduleId,
+              'course_id': courseId,
+              'progress_type': 'module_completed',
+              'progress_percentage': 100.0,
+              'points_earned': moduleCompletionPoints,
+              'completed_at': DateTime.now().toIso8601String(),
+            });
+          }
 
           // Check if course is now completed
           final isCourseComplete = await _isCourseCompleted(userId, courseId);
           if (isCourseComplete) {
-            // Award course completion points
-            await _client.rpc('award_activity_points', params: {
-              'p_user_id': userId,
-              'p_activity_type': 'course_completed',
-              'p_reference_id': courseId,
-              'p_description': 'Course completed: ${lesson['modules']['courses']['title'] ?? 'Unknown'}',
-            });
+            // Check if course completion already recorded
+            final existingCourseProgress = await _client
+                .from('user_progress')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('course_id', courseId)
+                .eq('progress_type', 'course_completed')
+                .maybeSingle();
+
+            if (existingCourseProgress == null) {
+              // Get course completion points from config
+              final coursePointsConfig = await _client
+                  .from('points_config')
+                  .select('base_points, multiplier')
+                  .eq('activity_type', 'course_completed')
+                  .eq('is_active', true)
+                  .maybeSingle();
+                  
+              final courseBasePoints = coursePointsConfig?['base_points'] ?? 100;
+              final courseMultiplier = coursePointsConfig?['multiplier'] ?? 1.0;
+              final courseCompletionPoints = (courseBasePoints * courseMultiplier).round();
+              
+              await _client.from('points_transactions').insert({
+                'user_id': userId,
+                'points': courseCompletionPoints,
+                'transaction_type': 'course_completed',
+                'reference_id': courseId,
+                'description': 'Course completed: ${lesson['modules']['courses']['title'] ?? 'Unknown'}',
+              });
+
+              // Insert course progress record
+              await _client.from('user_progress').insert({
+                'user_id': userId,
+                'course_id': courseId,
+                'progress_type': 'course_completed',
+                'progress_percentage': 100.0,
+                'points_earned': courseCompletionPoints,
+                'completed_at': DateTime.now().toIso8601String(),
+              });
+
+              // Award course completion achievement
+              await _client.from('user_achievements').insert({
+                'user_id': userId,
+                'achievement_type': 'course_completion',
+                'achievement_name': 'Course Graduate',
+                'description': 'Completed an entire course',
+                'points_awarded': courseCompletionPoints,
+              });
+            }
           }
         }
 
