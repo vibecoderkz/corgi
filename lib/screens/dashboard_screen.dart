@@ -119,11 +119,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               coursesCompleted: _userStats!.coursesCompleted,
               totalCourses: courses.length, // Use real course count
               lessonsCompleted: _userStats!.lessonsCompleted,
-              totalLessons: _userStats!.totalLessons,
-              averageGrade: _userStats!.averageGrade,
-              studyStreak: _userStats!.studyStreak,
-              totalStudyHours: _userStats!.totalStudyHours,
-              certificatesEarned: _userStats!.certificatesEarned,
+              modulesCompleted: _userStats!.modulesCompleted,
+              totalModules: _userStats!.totalModules,
+              totalLearningMinutes: _userStats!.totalLearningMinutes,
+              userRank: _userStats!.userRank,
+              streak: _userStats!.streak,
             );
           }
           

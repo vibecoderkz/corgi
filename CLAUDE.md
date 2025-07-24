@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Corgi AI Edu is a Flutter-based AI education platform with Supabase backend that provides:
+> **Note**: The README.md currently contains merge conflicts that should be resolved.
 - Course management system with hierarchical content (Courses → Modules → Lessons)
 - Role-based access control (student, admin, teacher)
 - Points-based gamification system
@@ -28,8 +29,11 @@ flutter test --name "specific test name"
 # Run all tests
 flutter test
 
-# Run linting
+# Run linting/static analysis
 flutter analyze
+
+# Check for dependency issues
+flutter pub deps
 
 # Clean build artifacts
 flutter clean
@@ -45,12 +49,21 @@ flutter build web --release  # Web
 
 ### Database Management
 ```bash
-# Required SQL files to run in Supabase SQL Editor (in order):
+# Complete setup (recommended):
+# Run points_system_complete.sql - Includes all core functionality
+
+# OR manual setup (run SQL files in Supabase SQL Editor in this order):
 # 1. database_schema.sql - Core tables and relationships
-# 2. admin_policies.sql - RLS policies for admin operations  
-# 3. discussion_system_schema.sql - Discussion system tables and triggers
-# 4. sample_data.sql - Test data for development
-# 5. sample_discussion_data.sql - Sample discussion content
+# 2. database_functions.sql - Database functions and procedures
+# 3. admin_policies.sql - RLS policies for admin operations
+# 4. points_configuration.sql - Points system configuration
+# 5. points_admin_policies.sql - Points system RLS policies
+# 6. discussion_system_schema.sql - Discussion system tables and triggers (if implementing discussions)
+# 7. sample_data.sql - Test data for development
+# 8. sample_discussion_data.sql - Sample discussion content (if implementing discussions)
+
+# Database verification:
+# Check setup with queries in DATABASE_SETUP_GUIDE.md
 ```
 
 ### Environment Setup
@@ -97,10 +110,11 @@ The app uses a centralized service architecture with strict separation of concer
 **Business Logic Services:**
 - **AdminService**: Admin-only operations with role validation and content CRUD
 - **CourseService**: Hierarchical content retrieval and progress tracking  
-- **UserService**: Profile management, statistics, and achievement tracking
+- **UserService**: Profile management, statistics, and achievement tracking (includes basic points functionality)
 - **PurchaseService**: Commerce operations with points integration and access control
-- **DiscussionService**: Community features with access-based discussion management
-- **PointsService**: Gamification system with transactions and leaderboards
+- **OnboardingService**: First-time user experience management
+- **DiscussionService**: Community features with access-based discussion management (**NOT YET IMPLEMENTED**)
+- **PointsService**: Gamification system with transactions and leaderboards (**NOT YET IMPLEMENTED**)
 
 **Service Architecture Patterns:**
 - **Singleton Pattern**: All services follow consistent singleton implementation
@@ -145,23 +159,24 @@ lib/
 ├── main.dart                    # App entry point with routing
 ├── main_navigation.dart         # Bottom tab navigation
 ├── services/                    # Business logic layer
-│   ├── discussion_service.dart  # Complete discussion management
-│   └── [other services]
+│   ├── discussion_service.dart  # Complete discussion management (NOT YET IMPLEMENTED)
+│   └── onboarding_service.dart  # First-time user experience
 ├── screens/
 │   ├── admin/                   # Admin-only screens
 │   │   ├── admin_dashboard_screen.dart
-│   │   ├── manage_discussions_screen.dart   # Discussion moderation
-│   │   └── [other admin screens]
+│   │   ├── manage_discussions_screen.dart   # Discussion moderation (NOT YET IMPLEMENTED)
+│   │   └── [other admin screens - see admin/ directory]
 │   ├── course_details_screen.dart
-│   ├── profile_screen.dart      # User dashboard with quick admin actions
-│   ├── community_screen.dart    # Discussion hub with tabs
-│   ├── discussion_details_screen.dart  # Full discussion interface
-│   ├── create_discussion_screen.dart   # Discussion creation form
-│   ├── search_discussions_screen.dart  # Advanced search
-│   └── [other screens]
+│   ├── dashboard_screen.dart    # Main user dashboard
+│   ├── profile_screen.dart      # User profile with quick admin actions
+│   ├── community_screen.dart    # Discussion hub with tabs (NOT YET IMPLEMENTED)
+│   ├── discussion_details_screen.dart  # Full discussion interface (NOT YET IMPLEMENTED)
+│   ├── create_discussion_screen.dart   # Discussion creation form (NOT YET IMPLEMENTED)
+│   ├── search_discussions_screen.dart  # Advanced search (NOT YET IMPLEMENTED)
+│   └── [other screens - see screens/ directory]
 └── models/
-    ├── discussion_models.dart   # Discussion-related data structures
-    └── [other models]
+    ├── discussion_models.dart   # Discussion-related data structures (NOT YET IMPLEMENTED)
+    └── [other models - see models/ directory]
 ```
 
 ### Authentication Flow
@@ -215,10 +230,25 @@ Admin functions require both:
 Content creation automatically calculates order_index and validates relationships.
 
 ### Development Database Setup
-Follow DATABASE_SETUP_GUIDE.md for complete setup. Key files to run in order:
-1. `database_schema.sql` - Core structure
-2. `admin_policies.sql` - Security policies  
-3. `sample_data.sql` - Test content
+Follow DATABASE_SETUP_GUIDE.md for complete setup. Use either:
+- **Quick Setup**: `points_system_complete.sql` (recommended - contains everything)
+- **Manual Setup**: See Database Management section above for step-by-step order
+
+### Implementation Status
+**✅ Fully Implemented:**
+- Core course/module/lesson system
+- User authentication and profiles  
+- Purchase system with points integration
+- Admin dashboard and content management
+- Basic points functionality in UserService
+
+**⚠️ Partially Implemented:**
+- Points system (database schema complete, dedicated service pending)
+
+**❌ Not Yet Implemented:**
+- Discussion system (database schema exists, UI and services missing)
+- DiscussionService and related screens
+- PointsService (functionality exists in UserService/PurchaseService)
 
 ### Discussion System Implementation Details
 
@@ -312,4 +342,12 @@ Widget _buildPurchaseSection() {
 - **Purchase Flow**: Two-step confirmation with detailed error messages
 - **Access Verification**: Multiple validation layers (service + database + UI)
 
-Always run `flutter analyze` before committing to maintain code quality and consistency.
+### Code Quality and Testing
+Always run these commands before committing:
+```bash
+flutter analyze          # Static analysis and linting
+flutter test             # Run all tests  
+flutter pub deps         # Check dependency issues
+```
+
+The project uses `package:flutter_lints/flutter.yaml` rules as configured in `analysis_options.yaml`.
