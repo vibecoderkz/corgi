@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
@@ -33,6 +35,133 @@ class AdminService {
 
       return response['role'] as String? ?? 'student';
     }) ?? 'student';
+  }
+
+  // =============================================
+  // IMAGE UPLOAD MANAGEMENT
+  // =============================================
+  
+  // Upload course image
+  static Future<String?> uploadCourseImage({
+    required File imageFile,
+    required String courseId,
+  }) async {
+    try {
+      final result = await SupabaseService.requireAuth<String?>((userId) async {
+        // Check admin permissions
+        if (!await isAdmin()) {
+          return null;
+        }
+
+        final path = SupabaseService.generateStoragePath(
+          prefix: 'courses',
+          fileName: imageFile.path.split('/').last,
+        );
+
+        return await SupabaseService.uploadFile(
+          bucket: 'courseimage',
+          path: path,
+          file: imageFile,
+        );
+      });
+      return result;
+    } catch (e) {
+      print('Failed to upload course image: $e');
+      return null;
+    }
+  }
+  
+  // Upload course image from bytes
+  static Future<String?> uploadCourseImageBytes({
+    required Uint8List imageBytes,
+    required String courseId,
+    required String fileName,
+  }) async {
+    try {
+      final result = await SupabaseService.requireAuth<String?>((userId) async {
+        // Check admin permissions
+        if (!await isAdmin()) {
+          return null;
+        }
+
+        final path = SupabaseService.generateStoragePath(
+          prefix: 'courses',
+          fileName: fileName,
+        );
+
+        return await SupabaseService.uploadBytes(
+          bucket: 'courseimage',
+          path: path,
+          bytes: imageBytes,
+        );
+      });
+      return result;
+    } catch (e) {
+      print('Failed to upload course image: $e');
+      return null;
+    }
+  }
+  
+  // Upload module image
+  static Future<String?> uploadModuleImage({
+    required File imageFile,
+    required String moduleId,
+  }) async {
+    try {
+      final result = await SupabaseService.requireAuth<String?>((userId) async {
+        // Check admin permissions
+        if (!await isAdmin()) {
+          return null;
+        }
+
+        final path = SupabaseService.generateStoragePath(
+          prefix: 'modules',
+          fileName: imageFile.path.split('/').last,
+        );
+
+        return await SupabaseService.uploadFile(
+          bucket: 'courseimage',
+          path: path,
+          file: imageFile,
+        );
+      });
+      return result;
+    } catch (e) {
+      print('Failed to upload module image: $e');
+      return null;
+    }
+  }
+  
+  // Delete course image
+  static Future<bool> deleteCourseImage(String imageUrl) async {
+    try {
+      final result = await SupabaseService.requireAuth<bool>((userId) async {
+        // Check admin permissions
+        if (!await isAdmin()) {
+          return false;
+        }
+
+        // Extract path from URL
+        final uri = Uri.parse(imageUrl);
+        final pathSegments = uri.pathSegments;
+        if (pathSegments.length < 3) return false;
+        
+        // Path should be like: storage/v1/object/public/courseimage/...
+        final startIndex = pathSegments.indexOf('courseimage') + 1;
+        if (startIndex == 0) return false;
+        
+        final path = pathSegments.sublist(startIndex).join('/');
+
+        return await SupabaseService.deleteFile(
+          bucket: 'courseimage',
+          path: path,
+        );
+      });
+      return result ?? false;
+    } catch (e) {
+      print('Failed to delete course image: $e');
+      return false;
+    }
   }
 
   // =============================================

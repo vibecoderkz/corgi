@@ -206,27 +206,34 @@ class UserService {
     String fileName,
   ) async {
     try {
-      // Create file path with user ID folder
-      final filePath = '$userId/$fileName';
+      // Generate path for avatar
+      final path = SupabaseService.generateStoragePath(
+        prefix: 'avatars',
+        fileName: fileName,
+        userId: userId,
+      );
       
       // Upload to Supabase Storage
-      String? uploadPath;
+      String? publicUrl;
       if (imageFile is File) {
-        uploadPath = await _client.storage
-            .from('avatars')
-            .upload(filePath, imageFile);
+        publicUrl = await SupabaseService.uploadFile(
+          bucket: 'avatars',
+          path: path,
+          file: imageFile,
+        );
       } else if (imageFile is Uint8List) {
-        uploadPath = await _client.storage
-            .from('avatars')
-            .uploadBinary(filePath, imageFile);
+        publicUrl = await SupabaseService.uploadBytes(
+          bucket: 'avatars',
+          path: path,
+          bytes: imageFile,
+        );
       } else {
         throw Exception('Unsupported file type');
       }
       
-      // Get public URL
-      final publicUrl = _client.storage
-          .from('avatars')
-          .getPublicUrl(filePath);
+      if (publicUrl == null) {
+        throw Exception('Failed to upload image');
+      }
       
       // Update user profile with new avatar URL
       await updateUserProfile(
@@ -248,14 +255,24 @@ class UserService {
   }
 
   // Delete profile image
-  static Future<Map<String, dynamic>> deleteProfileImage(String userId, String fileName) async {
+  static Future<Map<String, dynamic>> deleteProfileImage(String userId, String? avatarUrl) async {
     try {
-      final filePath = '$userId/$fileName';
-      
-      // Delete from storage
-      await _client.storage
-          .from('avatars')
-          .remove([filePath]);
+      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+        // Extract path from URL
+        final uri = Uri.parse(avatarUrl);
+        final pathSegments = uri.pathSegments;
+        final startIndex = pathSegments.indexOf('avatars') + 1;
+        
+        if (startIndex > 0 && startIndex < pathSegments.length) {
+          final path = pathSegments.sublist(startIndex).join('/');
+          
+          // Delete from storage
+          await SupabaseService.deleteFile(
+            bucket: 'avatars',
+            path: path,
+          );
+        }
+      }
       
       // Update user profile to remove avatar URL
       await updateUserProfile(

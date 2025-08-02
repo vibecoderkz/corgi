@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'login_screen.dart';
 import 'registration_screen.dart';
 import 'forgot_password_screen.dart';
@@ -15,7 +16,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
+    // Load environment variables
+    await dotenv.load(fileName: ".env");
+    
+    // Initialize Supabase
     await AuthService.initialize();
+    
     runApp(const MyApp());
   } catch (e) {
     print('Initialization error: $e');

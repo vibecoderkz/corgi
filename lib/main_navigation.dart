@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/courses_screen.dart';
+import 'screens/ai_assistant_screen.dart';
 import 'screens/profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -18,6 +19,7 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = [
     const DashboardScreen(),
     const CoursesScreen(),
+    const AIAssistantScreen(),
     const ProfileScreen(),
   ];
 
@@ -61,6 +63,11 @@ class _MainNavigationState extends State<MainNavigation> {
             icon: Icon(Icons.school_outlined),
             activeIcon: Icon(Icons.school),
             label: 'Courses',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.psychology_outlined),
+            activeIcon: Icon(Icons.psychology),
+            label: 'AI Help',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

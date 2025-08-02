@@ -417,12 +417,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 topRight: Radius.circular(12),
               ),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.play_circle_filled,
-                size: 40,
-                color: Colors.grey,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
+              child: course.imageUrl.isNotEmpty
+                  ? Image.network(
+                      course.imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 100,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Icon(
+                            Icons.play_circle_filled,
+                            size: 40,
+                            color: Colors.grey,
+                          ),
+                        );
+                      },
+                    )
+                  : const Center(
+                      child: Icon(
+                        Icons.play_circle_filled,
+                        size: 40,
+                        color: Colors.grey,
+                      ),
+                    ),
             ),
           ),
           Padding(

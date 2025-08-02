@@ -1,4 +1,8 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/admin_service.dart';
 
 class CreateCourseScreen extends StatefulWidget {
@@ -19,8 +23,13 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
 
   String _selectedDifficulty = 'Beginner';
   bool _isLoading = false;
+  File? _selectedImageFile;
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
+  String? _uploadedImageUrl;
 
   final List<String> _difficulties = ['Beginner', 'Intermediate', 'Advanced'];
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void dispose() {
@@ -33,6 +42,85 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        if (kIsWeb) {
+          // For web, read as bytes
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _selectedImageBytes = bytes;
+            _selectedImageFile = null;
+            _selectedImageName = image.name;
+            _uploadedImageUrl = null;
+          });
+        } else {
+          // For mobile, use File
+          setState(() {
+            _selectedImageFile = File(image.path);
+            _selectedImageBytes = null;
+            _selectedImageName = image.name;
+            _uploadedImageUrl = null;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<String?> _uploadImage() async {
+    if (_selectedImageFile == null && _selectedImageBytes == null) return null;
+
+    try {
+      // Generate a temporary course ID for the image path
+      final tempCourseId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+      String? imageUrl;
+      
+      if (_selectedImageFile != null) {
+        // Upload file (mobile)
+        imageUrl = await AdminService.uploadCourseImage(
+          imageFile: _selectedImageFile!,
+          courseId: tempCourseId,
+        );
+      } else if (_selectedImageBytes != null && _selectedImageName != null) {
+        // Upload bytes (web)
+        imageUrl = await AdminService.uploadCourseImageBytes(
+          imageBytes: _selectedImageBytes!,
+          courseId: tempCourseId,
+          fileName: _selectedImageName!,
+        );
+      }
+
+      if (imageUrl != null) {
+        setState(() {
+          _uploadedImageUrl = imageUrl;
+        });
+      }
+
+      return imageUrl;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: $e')),
+        );
+      }
+      return null;
+    }
+  }
+
   Future<void> _createCourse() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -41,15 +129,25 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     });
 
     try {
+      // Upload image if selected
+      String? finalImageUrl = _uploadedImageUrl;
+      if ((_selectedImageFile != null || _selectedImageBytes != null) && _uploadedImageUrl == null) {
+        finalImageUrl = await _uploadImage();
+      }
+
+      // Use uploaded image URL or manual URL
+      final imageUrl = finalImageUrl ?? 
+          (_imageUrlController.text.trim().isEmpty 
+              ? null 
+              : _imageUrlController.text.trim());
+
       final result = await AdminService.createCourse(
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         price: double.parse(_priceController.text.trim()),
         difficulty: _selectedDifficulty,
         estimatedTime: _estimatedTimeController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty 
-            ? null 
-            : _imageUrlController.text.trim(),
+        imageUrl: imageUrl,
         videoPreviewUrl: _videoUrlController.text.trim().isEmpty 
             ? null 
             : _videoUrlController.text.trim(),
@@ -236,12 +334,100 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 16),
+                      // Image selection section
+                      if (_selectedImageFile != null || _selectedImageBytes != null || _uploadedImageUrl != null) ...[
+                        Container(
+                          height: 200,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _uploadedImageUrl != null
+                                ? Image.network(
+                                    _uploadedImageUrl!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : kIsWeb && _selectedImageBytes != null
+                                    ? Image.memory(
+                                        _selectedImageBytes!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : _selectedImageFile != null
+                                        ? Image.file(
+                                            _selectedImageFile!,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : const SizedBox.shrink(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            if (_uploadedImageUrl != null)
+                              const Icon(Icons.cloud_done, color: Colors.green),
+                            if (_uploadedImageUrl != null)
+                              const SizedBox(width: 8),
+                            if (_uploadedImageUrl != null)
+                              const Text('Image uploaded'),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _selectedImageFile = null;
+                                  _selectedImageBytes = null;
+                                  _selectedImageName = null;
+                                  _uploadedImageUrl = null;
+                                });
+                              },
+                              child: const Text('Remove'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _pickImage,
+                              icon: const Icon(Icons.image),
+                              label: const Text('Select Image'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.all(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: (_selectedImageFile != null || _selectedImageBytes != null) && _uploadedImageUrl == null
+                                  ? _uploadImage
+                                  : null,
+                              icon: const Icon(Icons.cloud_upload),
+                              label: const Text('Upload Image'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.all(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: _imageUrlController,
-                        decoration: const InputDecoration(
-                          labelText: 'Course Image URL',
+                        enabled: _selectedImageFile == null && _selectedImageBytes == null && _uploadedImageUrl == null,
+                        decoration: InputDecoration(
+                          labelText: 'Or Enter Course Image URL',
                           hintText: 'https://example.com/image.jpg',
-                          border: OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
+                          helperText: _selectedImageFile != null || _selectedImageBytes != null || _uploadedImageUrl != null
+                              ? 'Remove selected image to enter URL manually'
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 16),

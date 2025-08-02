@@ -102,6 +102,7 @@ class _CoursesScreenState extends State<CoursesScreen>
           price: double.tryParse(courseData['price']?.toString() ?? '0') ?? 0.0,
           gradient: _getGradientForCourse(courseData['difficulty'] ?? 'Beginner'),
           icon: _getIconForCourse(courseData['difficulty'] ?? 'Beginner'),
+          imageUrl: courseData['image_url'],
         )).toList();
       } else {
         // Fallback to sample data if no database courses
@@ -421,6 +422,7 @@ class Course {
   final double price;
   final LinearGradient gradient;
   final IconData icon;
+  final String? imageUrl;
   
   Course({
     required this.id,
@@ -435,6 +437,7 @@ class Course {
     required this.price,
     required this.gradient,
     required this.icon,
+    this.imageUrl,
   });
 }
 
@@ -504,15 +507,61 @@ class CourseCard extends StatelessWidget {
     return Container(
       height: cardImageHeight,
       decoration: BoxDecoration(
-        gradient: course.gradient,
+        color: Colors.grey[200],
         borderRadius: const BorderRadius.vertical(top: Radius.circular(cardBorderRadius)),
       ),
-      child: Center(
-        child: Icon(
-          course.icon,
-          size: 60,
-          color: Colors.white,
-        ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(cardBorderRadius)),
+        child: course.imageUrl != null && course.imageUrl!.isNotEmpty
+            ? Image.network(
+                course.imageUrl!,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: cardImageHeight,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: course.gradient,
+                    ),
+                    child: Center(
+                      child: Icon(
+                        course.icon,
+                        size: 60,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: course.gradient,
+                    ),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  gradient: course.gradient,
+                ),
+                child: Center(
+                  child: Icon(
+                    course.icon,
+                    size: 60,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
       ),
     );
   }
